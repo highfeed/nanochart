@@ -50,14 +50,6 @@ jobs:
       - name: Inspect the tarball
         run: npm pack --dry-run
 
-      # Trusted Publishing cannot cover a first release: a trusted publisher is
-      # configured on a package's settings page, and there is no page until the
-      # package exists. So the first tag goes out under an automation token and
-      # this `env:` block comes back out once the publisher is configured.
-      # Provenance does not depend on any of that — only on `id-token: write`
-      # above — so 0.1.0 is attested either way.
       - name: Publish
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
