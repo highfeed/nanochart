@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 — 2026-08-26
 
 First public release. Everything below is relative to the unreleased state the
 project was in before it had tests or a repository.
@@ -104,3 +104,14 @@ project was in before it had tests or a repository.
 - A tooltip beside a gap admitting rows from series at a completely different
   x, because the step it measures its reach against was NaN for the same
   reason.
+- Every tick on an axis finer than a millionth drawing as a bare `0`. The
+  precision came from counting the digits of the step as `toPrecision` renders
+  it, and that switches to exponential notation below 1e-6, so the exponent of
+  `1.00000000000e-7` was read as decimals. It landed on 6, which was also the
+  cap, and `toFixed(6)` of 2e-7 is `0.000000`. Precision is read off the
+  exponent now.
+- The `a11y()` data table pairing series row by row, which put numbers side by
+  side that never occurred together whenever two series sat on their own x
+  grids — under an x taken from a third. It matches by x value now, the way the
+  tooltip does. A reader of the table cannot see that mispaired numbers do not
+  belong, which is the whole reason the table is there.

@@ -59,6 +59,29 @@ describe('data table', () => {
     chart.destroy();
   });
 
+  it('does not pair series that sit on their own x grids', () => {
+    // Pairing by row put numbers side by side that never occurred together,
+    // under an x taken from a third series. A reader of this table cannot see
+    // that they do not belong, which is the whole reason the table exists.
+    const host = mount(600, 300);
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      series: [
+        { id: 'near', type: 'line', name: 'Near', data: [[0, 11], [1, 12], [2, 13]] },
+        { id: 'far', type: 'line', name: 'Far', data: [[100, 777], [101, 888], [102, 999]] },
+      ],
+      plugins: [a11y()],
+    });
+    chart.render();
+
+    const text = tableOf(chart).textContent ?? '';
+    expect(text).toContain('11');
+    expect(text).not.toContain('777');
+    expect(text).not.toContain('888');
+    chart.destroy();
+  });
+
   it('is hidden visually but not from assistive technology', () => {
     const { chart } = chartWith();
     const style = tableOf(chart).getAttribute('style') ?? '';
