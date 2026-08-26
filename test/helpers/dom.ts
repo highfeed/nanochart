@@ -114,3 +114,28 @@ export function drawOnce(chart: { canvas: HTMLCanvasElement; render(): void }): 
   chart.render();
   return ctx;
 }
+
+/**
+ * A wheel event carrying pointer coordinates.
+ *
+ * happy-dom's `WheelEvent` constructor drops `clientX`/`clientY` — its
+ * `MouseEvent` keeps them, so this is a gap in the subclass rather than
+ * anything the chart does. Defining them afterwards gives handlers the same
+ * event a browser would deliver.
+ */
+export function wheelEvent(x: number, y: number, deltaY: number, init: WheelEventInit = {}): WheelEvent {
+  const event = new WheelEvent('wheel', { deltaY, cancelable: true, bubbles: true, ...init });
+  if (event.clientX === undefined) {
+    Object.defineProperties(event, {
+      clientX: { value: x, configurable: true },
+      clientY: { value: y, configurable: true },
+    });
+  }
+  // Modifier flags come from MouseEvent too, and go missing the same way.
+  for (const key of ['ctrlKey', 'shiftKey', 'altKey', 'metaKey'] as const) {
+    if (event[key] === undefined) {
+      Object.defineProperty(event, key, { value: init[key] ?? false, configurable: true });
+    }
+  }
+  return event;
+}

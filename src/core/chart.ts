@@ -39,7 +39,7 @@ const AXES: readonly AxisId[] = ['y', 'y2'];
 const DEFAULT_PADDING: Padding = { top: 20, right: 0, bottom: 0, left: 0 };
 const DEFAULT_ANIMATION: AnimationOptions = { duration: 260, easing: easeOutCubic };
 const DEFAULT_HEIGHT = 240;
-const MIN_RANGE = 0.02;
+const DEFAULT_MIN_SPAN = 0.02;
 
 export interface DomainState {
   readonly min: Animated;
@@ -80,6 +80,12 @@ export class Chart {
   readonly animation: AnimationOptions | null;
   /** Date and number formatting for this chart's locale and timezone. */
   readonly formats: Formats;
+  /**
+   * Smallest visible window, as a fraction of the full extent. The scrubber
+   * and the zoom plugin read this, so they cannot disagree with setRange about
+   * how far in you are allowed to go.
+   */
+  readonly minSpan: number;
 
   private readonly domains: Record<AxisId, DomainState> = {
     y: createDomain(),
@@ -128,6 +134,7 @@ export class Chart {
     this.y2Axis = options.y2 ?? {};
     this.padding = { ...DEFAULT_PADDING, ...options.padding };
     this.formats = createFormats(options.locale, options.timeZone);
+    this.minSpan = clamp(options.minSpan ?? DEFAULT_MIN_SPAN, 1e-6, 1);
     this.animation =
       options.animation === false ? null : { ...DEFAULT_ANIMATION, ...(options.animation ?? {}) };
 
@@ -293,9 +300,9 @@ export class Chart {
   setRange(from: number, to: number, animate = true): void {
     let a = clamp(Math.min(from, to), 0, 1);
     let b = clamp(Math.max(from, to), 0, 1);
-    if (b - a < MIN_RANGE) {
-      b = Math.min(1, a + MIN_RANGE);
-      a = Math.max(0, b - MIN_RANGE);
+    if (b - a < this.minSpan) {
+      b = Math.min(1, a + this.minSpan);
+      a = Math.max(0, b - this.minSpan);
     }
     if (a === this.rangeFrom.target && b === this.rangeTo.target) return;
     const now = performance.now();
