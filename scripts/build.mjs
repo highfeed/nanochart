@@ -30,6 +30,9 @@ for (const target of targets) {
     bundle: true,
     minify: true,
     sourcemap: true,
+    // The sources are published alongside dist, so embedding a second copy of
+    // every file in each bundle map only inflates the package.
+    sourcesContent: false,
     target: 'es2020',
     legalComments: 'none',
     ...target,
