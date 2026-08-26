@@ -74,6 +74,40 @@ describe('time ticks', () => {
   });
 });
 
+describe('locales that do not spell numbers in Latin digits', () => {
+  // The wall clock is read back with `Number` and handed to `Date.UTC`, so a
+  // locale whose digits are Arabic-Indic, or whose calendar is not Gregorian,
+  // used to produce an invalid instant and throw out of the middle of a frame.
+  it('still reads its own wall clock', () => {
+    for (const locale of ['ar-EG', 'fa-IR', 'bn-BD', 'my-MM', 'th-TH']) {
+      const formats = createFormats(locale, 'UTC');
+      expect(new Date(formats.startOfDay(T)).toISOString()).toBe('2023-01-07T00:00:00.000Z');
+      expect(formats.monthOf(T)).toBe(0);
+      expect(new Date(formats.addMonths(T, 2)).toISOString()).toBe('2023-03-07T15:30:00.000Z');
+    }
+  });
+
+  it('keeps its own digits in the labels a reader sees', () => {
+    // Only the arithmetic is pinned to Latin; the display is still the locale's.
+    expect(createFormats('ar-EG', 'UTC').day(T)).toMatch(/[\u0660-\u0669]/);
+  });
+
+  it('draws a time axis without throwing', () => {
+    const host = mount(600, 300);
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      locale: 'ar-EG',
+      timeZone: 'UTC',
+      x: { type: 'time' },
+      series: [{ id: 'a', type: 'line', data: Array.from({ length: 20 }, (_, i) => [T + i * DAY, i]) }],
+      plugins: [xAxis()],
+    });
+    expect(drawOnce(chart).texts().length).toBeGreaterThan(0);
+    chart.destroy();
+  });
+});
+
 describe('chart locale', () => {
   it('labels its x axis through the configured locale and zone', () => {
     const host = mount(600, 300);
