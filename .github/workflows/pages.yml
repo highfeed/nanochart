@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run site
+      # Never deploy a demo page that throws.
+      - run: node scripts/check-examples.mjs
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

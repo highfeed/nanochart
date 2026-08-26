@@ -25,3 +25,6 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
+      # The examples are the only end-to-end use of the public API, and the
+      # demo site is built from them.
+      - run: node scripts/check-examples.mjs
