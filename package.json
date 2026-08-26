@@ -55,7 +55,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/build.mjs",
     "watch": "tsc -p tsconfig.json --watch",
-    "test": "vitest run",
+    "test": "npm run typecheck && vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "serve": "python3 -m http.server 4173",
