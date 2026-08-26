@@ -2,6 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
+    // The canvas stub the tests share with scripts/check-examples.mjs is plain
+    // JS, so the checker can import it without a build step.
+    "allowJs": true,
     "rootDir": ".",
     "declaration": false,
     "declarationMap": false,

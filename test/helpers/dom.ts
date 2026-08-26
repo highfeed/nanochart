@@ -1,31 +1,10 @@
-import { MockContext } from './mock-canvas.js';
+import { installGetContext, MockContext, MockPath2D, MockResizeObserver, peekContext } from './canvas-stub.mjs';
 
-/** Records the same path calls as MockContext, for `fill(path)` style drawing. */
-class MockPath2D {
-  readonly ops: { name: string; args: unknown[] }[] = [];
-  moveTo(...args: unknown[]) { this.ops.push({ name: 'moveTo', args }); }
-  lineTo(...args: unknown[]) { this.ops.push({ name: 'lineTo', args }); }
-  rect(...args: unknown[]) { this.ops.push({ name: 'rect', args }); }
-  arc(...args: unknown[]) { this.ops.push({ name: 'arc', args }); }
-  closePath() { this.ops.push({ name: 'closePath', args: [] }); }
-}
-
-const contexts = new WeakMap<HTMLCanvasElement, MockContext>();
+export { MockContext };
 
 /** Installs canvas, Path2D and ResizeObserver stubs. Call once per test file. */
 export function installCanvas(): void {
-  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-    configurable: true,
-    value(this: HTMLCanvasElement, kind: string) {
-      if (kind !== '2d') return null;
-      let ctx = contexts.get(this);
-      if (!ctx) {
-        ctx = new MockContext({ width: 0, height: 0 } as never);
-        contexts.set(this, ctx);
-      }
-      return ctx;
-    },
-  });
+  installGetContext(HTMLCanvasElement);
 
   // happy-dom reports 0 for layout boxes; derive them from the inline style so
   // that resize() sees what a browser would see.
@@ -45,17 +24,13 @@ export function installCanvas(): void {
   (globalThis as Record<string, unknown>).Path2D = MockPath2D;
 
   if (typeof globalThis.ResizeObserver === 'undefined') {
-    (globalThis as Record<string, unknown>).ResizeObserver = class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    };
+    (globalThis as Record<string, unknown>).ResizeObserver = MockResizeObserver;
   }
 }
 
 /** The recorder behind a chart's canvas. */
-export function contextOf(canvas: HTMLCanvasElement): MockContext {
-  const ctx = contexts.get(canvas);
+export function contextOf(canvas: HTMLCanvasElement) {
+  const ctx = peekContext(canvas);
   if (!ctx) throw new Error('test: canvas has no mock context');
   return ctx;
 }
