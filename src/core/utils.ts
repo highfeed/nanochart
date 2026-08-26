@@ -1,56 +1,7 @@
-import type { Point, SeriesInput } from './types.js';
-
 export const clamp = (value: number, min: number, max: number): number =>
   value < min ? min : value > max ? max : value;
 
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
-
-export function normalizePoints(input: SeriesInput): Point[] {
-  const out: Point[] = new Array(input.length);
-  for (let i = 0; i < input.length; i++) {
-    const raw = input[i];
-    if (typeof raw === 'number') {
-      out[i] = { x: i, y: raw };
-    } else if (Array.isArray(raw)) {
-      const tuple = raw as readonly [number, number];
-      out[i] = { x: tuple[0], y: tuple[1] };
-    } else {
-      const point = raw as Point;
-      out[i] =
-        point.close === undefined
-          ? { x: point.x, y: point.y }
-          : { ...point, y: (point.y as number | undefined) ?? point.close };
-    }
-  }
-  for (let i = 1; i < out.length; i++) {
-    if (out[i].x < out[i - 1].x) {
-      out.sort((a, b) => a.x - b.x);
-      break;
-    }
-  }
-  return out;
-}
-
-/** First index whose x is >= value, or `points.length`. */
-export function lowerBound(points: readonly Point[], value: number): number {
-  let lo = 0;
-  let hi = points.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (points[mid].x < value) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
-/** Index of the point closest to `value`, or -1 for empty series. */
-export function nearestIndex(points: readonly Point[], value: number): number {
-  if (points.length === 0) return -1;
-  const i = lowerBound(points, value);
-  if (i === 0) return 0;
-  if (i >= points.length) return points.length - 1;
-  return value - points[i - 1].x <= points[i].x - value ? i - 1 : i;
-}
 
 const COMPACT_UNITS = ['', 'K', 'M', 'B', 'T'];
 
@@ -137,10 +88,6 @@ export function formatTime(timestamp: number): string {
 export function formatMonth(timestamp: number): string {
   const date = new Date(timestamp);
   return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
-}
-
-export function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
 }
 
 export function boxContains(box: { x: number; y: number; w: number; h: number }, x: number, y: number): boolean {

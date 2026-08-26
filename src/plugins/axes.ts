@@ -14,6 +14,14 @@ class TickFader {
     if (same(ticks, this.current)) return;
     this.previous = this.current;
     this.current = ticks.slice();
+    // The first set has nothing to cross-fade from, so it appears at once.
+    // Fading it in would leave the axis blank on the opening frame, and blank
+    // for good if the next frame is delayed — a background tab, a throttled
+    // rAF, or a chart that stops animating before the fade completes.
+    if (this.previous.length === 0) {
+      this.fade.jump(1);
+      return;
+    }
     this.fade.jump(0);
     this.fade.set(1, now, duration);
   }

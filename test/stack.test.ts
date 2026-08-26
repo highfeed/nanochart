@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { normalizeData } from '../src/core/data.js';
 import { buildStacks } from '../src/core/stack.js';
-import { normalizePoints } from '../src/core/utils.js';
 import type { SeriesState } from '../src/core/types.js';
 
 function series(id: string, values: number[], options: Record<string, unknown> = {}): SeriesState {
@@ -11,7 +11,7 @@ function series(id: string, values: number[], options: Record<string, unknown> =
     index: 0,
     name: id,
     axis: 'y',
-    points: normalizePoints(values),
+    data: normalizeData(values),
     visible: true,
     alpha: { at: () => 1 } as never,
   };

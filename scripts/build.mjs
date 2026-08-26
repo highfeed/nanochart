@@ -2,8 +2,14 @@ import { gzipSync } from 'node:zlib';
 import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 
-/** gzip budget for the ESM bundle, in bytes. The README quotes this number. */
-const SIZE_LIMIT = 14 * 1024;
+/**
+ * gzip budget for the ESM bundle, in bytes. The README quotes this number.
+ *
+ * Raised from 14 kB when the columnar data layer landed: min/max decimation
+ * and gap handling cost about 1.2 kB, and a chart that draws the data it was
+ * given is worth more than the kilobyte.
+ */
+const SIZE_LIMIT = 15 * 1024;
 
 const targets = [
   { format: 'esm', outfile: 'dist/nanochart.js' },

@@ -3,8 +3,9 @@ import { mixColorStrings } from './color.js';
 import { getSeriesRenderer } from './registry.js';
 import { Renderer } from './renderer.js';
 import { nextNiceStep, niceStepUp, scaleLinear, ticksFromStep, type Scale } from './scale.js';
+import { lowerBound, nearestIndex, normalizeData } from './data.js';
 import { buildStacks } from './stack.js';
-import { boxContains, clamp, lowerBound, normalizePoints, nearestIndex } from './utils.js';
+import { boxContains, clamp } from './utils.js';
 import type {
   AnimationOptions,
   AxisId,
@@ -205,7 +206,7 @@ export class Chart {
         index,
         name: options.name ?? options.id,
         axis: options.axis ?? 'y',
-        points: normalizePoints(options.data),
+        data: normalizeData(options.data),
         visible,
         alpha: old?.alpha ?? new Animated(visible ? 1 : 0),
       };
@@ -339,10 +340,10 @@ export class Chart {
 
   /** Index window covering `[from, to]` plus one point on each side. */
   windowIndices(series: SeriesState, from: number, to: number): [number, number] {
-    const points = series.points;
-    if (points.length === 0) return [0, -1];
-    const i0 = Math.max(0, lowerBound(points, from) - 1);
-    const i1 = Math.min(points.length - 1, lowerBound(points, to));
+    const data = series.data;
+    if (data.length === 0) return [0, -1];
+    const i0 = Math.max(0, lowerBound(data, from) - 1);
+    const i1 = Math.min(data.length - 1, lowerBound(data, to));
     return [i0, i1];
   }
 
@@ -352,7 +353,7 @@ export class Chart {
     for (const series of this.series) {
       if (!series.visible) continue;
       if (getSeriesRenderer(series.type)?.cartesian === false) continue;
-      if (!best || series.points.length > best.points.length) best = series;
+      if (!best || series.data.length > best.data.length) best = series;
     }
     return best;
   }
@@ -420,10 +421,10 @@ export class Chart {
     let min = Infinity;
     let max = -Infinity;
     for (const series of this.series) {
-      const points = series.points;
-      if (points.length === 0) continue;
-      if (points[0].x < min) min = points[0].x;
-      if (points[points.length - 1].x > max) max = points[points.length - 1].x;
+      const data = series.data;
+      if (data.length === 0) continue;
+      if (data.x[0] < min) min = data.x[0];
+      if (data.x[data.length - 1] > max) max = data.x[data.length - 1];
     }
     if (!Number.isFinite(min) || max <= min) {
       this.xExtent = [0, 1];
@@ -442,7 +443,7 @@ export class Chart {
     let found = false;
 
     for (const series of this.series) {
-      if (series.axis !== axis || !series.visible || series.points.length === 0) continue;
+      if (series.axis !== axis || !series.visible || series.data.length === 0) continue;
       const renderer = getSeriesRenderer(series.type);
       if (!renderer || renderer.cartesian === false) continue;
       if (renderer.baseline) baseline = true;
@@ -457,16 +458,19 @@ export class Chart {
         continue;
       }
       const stack = this.stacks.get(series.id);
+      const column = series.data.y;
       for (let i = i0; i <= i1; i++) {
         // Negative stacks grow downwards, so `top` can sit below `base`.
-        const a = stack ? stack.base[i] : series.points[i].y;
-        const b = stack ? stack.top[i] : series.points[i].y;
+        // Gaps are NaN, and every comparison against NaN is false, so they
+        // drop out of the scan without a branch.
+        const a = stack ? stack.base[i] : column[i];
+        const b = stack ? stack.top[i] : column[i];
         if (a < min) min = a;
         if (b < min) min = b;
         if (a > max) max = a;
         if (b > max) max = b;
       }
-      found = true;
+      found = found || Number.isFinite(min);
     }
     return found ? { min, max, baseline } : null;
   }
@@ -663,7 +667,7 @@ export class Chart {
       this.setHover(-1, null);
       return;
     }
-    this.setHover(nearestIndex(reference.points, this.xScale.invert(state.x)), null);
+    this.setHover(nearestIndex(reference.data, this.xScale.invert(state.x)), null);
   }
 
   private setHover(index: number, seriesId: string | null): void {

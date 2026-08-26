@@ -26,7 +26,7 @@ export function buildStacks(
     let length = 0;
     let normalize = false;
     for (const s of list) {
-      if (s.points.length > length) length = s.points.length;
+      if (s.data.length > length) length = s.data.length;
       if (s.options.normalize) normalize = true;
     }
 
@@ -36,7 +36,11 @@ export function buildStacks(
       for (const s of list) {
         const alpha = alphaOf(s);
         if (alpha <= 0) continue;
-        for (let i = 0; i < s.points.length; i++) totals[i] += s.points[i].y * alpha;
+        const column = s.data.y;
+        for (let i = 0; i < s.data.length; i++) {
+          const v = column[i];
+          if (Number.isFinite(v)) totals[i] += v * alpha;
+        }
       }
     }
 
@@ -47,8 +51,11 @@ export function buildStacks(
       const base = new Float64Array(length);
       const top = new Float64Array(length);
       const alpha = alphaOf(s);
+      const column = s.data.y;
       for (let i = 0; i < length; i++) {
-        const raw = i < s.points.length ? s.points[i].y * alpha : 0;
+        // A gap contributes nothing, so the rest of the stack keeps its shape.
+        const sample = i < s.data.length ? column[i] : Number.NaN;
+        const raw = Number.isFinite(sample) ? sample * alpha : 0;
         const value = totals ? (totals[i] > 0 ? (raw / totals[i]) * 100 : 0) : raw;
         const cursor = value < 0 ? below : above;
         base[i] = cursor[i];

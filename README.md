@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
-[![gzip](https://img.shields.io/badge/gzip-13.5%20kB-brightgreen.svg)](#performance-notes)
+[![gzip](https://img.shields.io/badge/gzip-14.7%20kB-brightgreen.svg)](#performance-notes)
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **13.5 kB gzip** for everything: 6 series types, axes, legend, tooltip and a range scrubber
+- **14.7 kB gzip** for everything: 6 series types, axes, legend, tooltip and a range scrubber
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
 - **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching
 - **Plugin core**: axes, legend, tooltip and scrubber are plugins, and so is anything you add
@@ -46,6 +46,8 @@ const chart = new Chart('#followers', {
 ```
 
 `data` accepts `[5, 7, 3]`, `[[timestamp, value], ...]` or `[{ x, y }, ...]`.
+`null`, `undefined` and any non-finite number mark a gap: the line breaks there,
+the fill splits, and the point drops out of the tooltip and the axis domain.
 
 ## Series types
 
@@ -104,18 +106,25 @@ const watermark = {
 Custom series types work the same way:
 
 ```js
-import { registerSeries } from 'nanochart';
+import { registerSeries } from 'nanochart.js';
 
 registerSeries({
   type: 'dots',
   draw(ctx, series) {
     const y = ctx.scaleFor(series.axis);
-    for (const point of series.points) {
-      ctx.r.circle(ctx.x.map(point.x), y.map(point.y), 3, ctx.colorOf(series));
+    const { x, y: values, length } = series.data;
+    for (let i = 0; i < length; i++) {
+      if (!Number.isFinite(values[i])) continue;   // a gap
+      ctx.r.circle(ctx.x.map(x[i]), y.map(values[i]), 3, ctx.colorOf(series));
     }
   },
 });
 ```
+
+Samples are stored columnar — `series.data` holds parallel `Float64Array`s
+(`x`, `y`, and `open`/`high`/`low`/`close` for OHLC input) rather than one
+object per point. `pointAt(series.data, i)` materializes a single `{ x, y }`
+when an object is more convenient than the columns.
 
 ## Themes
 
@@ -148,9 +157,14 @@ chart.on('hover' | 'select' | 'rangechange' | 'toggle' | 'themechange', handler)
 ## Performance notes
 
 - One canvas per chart, one `requestAnimationFrame` loop that stops when nothing animates.
-- Line and area paths are decimated to about two samples per pixel column.
+- Samples live in typed-array columns, so a million points cost a million
+  numbers rather than a million objects.
+- Every series type decimates. Lines and areas keep the first, last, lowest and
+  highest sample of each pixel column, so a one-sample spike survives instead of
+  being skipped; bars, candles and dots collapse per column the same way.
 - Bars are batched into a single path per series.
-- Text metrics are cached, and colors are parsed once per string.
+- Text metrics are cached, colors are parsed once per string, and the minimum x
+  step of a series is computed once rather than per frame.
 
 ## Examples
 

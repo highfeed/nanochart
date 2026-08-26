@@ -7,6 +7,8 @@ const MIN_BODY = 1;
 /** Candles are unreadable in the range selector, so it gets a close line. */
 function drawCloseLine(ctx: DrawContext, series: SeriesState, i0: number, i1: number, y: Scale): void {
   const c = ctx.r.ctx;
+  const data = series.data;
+  const closes = data.close ?? data.y;
   const stride = Math.max(1, Math.floor((i1 - i0) / Math.max(1, ctx.box.w)));
   c.save();
   c.globalAlpha = ctx.alphaOf(series);
@@ -14,12 +16,18 @@ function drawCloseLine(ctx: DrawContext, series: SeriesState, i0: number, i1: nu
   c.lineWidth = 1;
   c.lineJoin = 'round';
   c.beginPath();
+  let started = false;
   for (let i = i0; i <= i1; i += stride) {
-    const point = series.points[i];
-    const px = ctx.x.map(point.x);
-    const py = y.map(point.close ?? point.y);
-    if (i === i0) c.moveTo(px, py);
-    else c.lineTo(px, py);
+    const value = closes[i];
+    if (!Number.isFinite(value)) {
+      started = false;
+      continue;
+    }
+    const px = ctx.x.map(data.x[i]);
+    const py = y.map(value);
+    if (started) c.lineTo(px, py);
+    else c.moveTo(px, py);
+    started = true;
   }
   c.stroke();
   c.restore();
@@ -30,16 +38,16 @@ export const candlestick: SeriesRenderer = {
   type: 'candlestick',
 
   extent(series, i0, i1) {
+    const data = series.data;
+    const lows = data.low ?? data.y;
+    const highs = data.high ?? data.y;
     let min = Infinity;
     let max = -Infinity;
     for (let i = i0; i <= i1; i++) {
-      const point = series.points[i];
-      const low = point.low ?? point.y;
-      const high = point.high ?? point.y;
-      if (low < min) min = low;
-      if (high > max) max = high;
+      if (lows[i] < min) min = lows[i];
+      if (highs[i] > max) max = highs[i];
     }
-    return Number.isFinite(min) ? [min, max] : null;
+    return Number.isFinite(min) && Number.isFinite(max) ? [min, max] : null;
   },
 
   draw(ctx, series) {
@@ -51,28 +59,71 @@ export const candlestick: SeriesRenderer = {
       drawCloseLine(ctx, series, i0, i1, y);
       return;
     }
+
+    const data = series.data;
+    const opens = data.open ?? data.y;
+    const closes = data.close ?? data.y;
+    const highs = data.high ?? data.y;
+    const lows = data.low ?? data.y;
+
     const width = Math.max(1, stepPixels(ctx, series) * (series.options.barWidth ?? 0.62));
     const wick = width > 4 ? 1 : 0.5;
     const up = new Path2D();
     const down = new Path2D();
 
-    for (let i = i0; i <= i1; i++) {
-      const point = series.points[i];
-      const open = point.open ?? point.y;
-      const close = point.close ?? point.y;
-      const center = ctx.x.map(point.x);
-      const path = close >= open ? up : down;
+    // Under about two pixels a candle has no readable body, so each pixel
+    // column becomes one aggregate candle: first open, last close, and the
+    // extremes of everything in between.
+    const merged = width < 2;
+    let px = -1;
+    let open = Number.NaN;
+    let close = Number.NaN;
+    let high = -Infinity;
+    let low = Infinity;
 
-      const top = y.map(Math.max(open, close));
-      const bottom = y.map(Math.min(open, close));
+    const emit = (): void => {
+      if (px < 0 || !Number.isFinite(open) || !Number.isFinite(close)) return;
+      const path = close >= open ? up : down;
+      const bodyTop = y.map(Math.max(open, close));
+      const bodyBottom = y.map(Math.min(open, close));
+      path.rect(px, bodyTop, MIN_BODY, Math.max(MIN_BODY, bodyBottom - bodyTop));
+      const top = y.map(high);
+      const bottom = y.map(low);
+      path.rect(px, top, wick, Math.max(MIN_BODY, bottom - top));
+    };
+
+    for (let i = i0; i <= i1; i++) {
+      if (!Number.isFinite(closes[i])) continue;
+
+      if (merged) {
+        const column = Math.round(ctx.x.map(data.x[i]));
+        if (column !== px) {
+          emit();
+          px = column;
+          open = opens[i];
+          high = -Infinity;
+          low = Infinity;
+        }
+        close = closes[i];
+        if (highs[i] > high) high = highs[i];
+        if (lows[i] < low) low = lows[i];
+        continue;
+      }
+
+      const center = ctx.x.map(data.x[i]);
+      const path = closes[i] >= opens[i] ? up : down;
+
+      const bodyTop = y.map(Math.max(opens[i], closes[i]));
+      const bodyBottom = y.map(Math.min(opens[i], closes[i]));
       const left = Math.round(center - width / 2);
       const right = Math.max(left + MIN_BODY, Math.round(center + width / 2));
-      path.rect(left, top, right - left, Math.max(MIN_BODY, bottom - top));
+      path.rect(left, bodyTop, right - left, Math.max(MIN_BODY, bodyBottom - bodyTop));
 
-      const high = y.map(point.high ?? Math.max(open, close));
-      const low = y.map(point.low ?? Math.min(open, close));
-      path.rect(Math.round(center) - wick / 2, high, wick, Math.max(MIN_BODY, low - high));
+      const top = y.map(highs[i]);
+      const bottom = y.map(lows[i]);
+      path.rect(Math.round(center) - wick / 2, top, wick, Math.max(MIN_BODY, bottom - top));
     }
+    if (merged) emit();
 
     const c = ctx.r.ctx;
     c.save();

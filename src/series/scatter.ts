@@ -11,11 +11,28 @@ export const scatter: SeriesRenderer = {
 
     const y = ctx.scaleFor(series.axis);
     const radius = series.options.radius ?? (ctx.preview ? 1 : 3);
+    const xs = series.data.x;
+    const ys = series.data.y;
     const dots = new Path2D();
+
+    // Dots landing on the same pixel are indistinguishable once drawn, so a
+    // dense series only pays for the pixels it actually covers.
+    const step = Math.max(1, radius);
+    const seen = i1 - i0 > ctx.box.w ? new Set<number>() : null;
+
     for (let i = i0; i <= i1; i++) {
-      const point = series.points[i];
-      dots.moveTo(ctx.x.map(point.x) + radius, y.map(point.y));
-      dots.arc(ctx.x.map(point.x), y.map(point.y), radius, 0, Math.PI * 2);
+      const value = ys[i];
+      if (!Number.isFinite(value)) continue;
+      const px = ctx.x.map(xs[i]);
+      const py = y.map(value);
+
+      if (seen) {
+        const key = Math.round(px / step) * 65536 + Math.round(py / step);
+        if (seen.has(key)) continue;
+        seen.add(key);
+      }
+      dots.moveTo(px + radius, py);
+      dots.arc(px, py, radius, 0, Math.PI * 2);
     }
 
     const c = ctx.r.ctx;

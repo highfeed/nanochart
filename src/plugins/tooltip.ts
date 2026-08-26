@@ -1,6 +1,7 @@
 import { withAlpha } from '../core/color.js';
+import { nearestIndex } from '../core/data.js';
 import type { DrawContext, Plugin, SeriesState } from '../core/types.js';
-import { formatDate, formatGrouped, nearestIndex } from '../core/utils.js';
+import { formatDate, formatGrouped } from '../core/utils.js';
 
 export interface TooltipOptions {
   /** Card heading; receives the x value and the point index. */
@@ -43,29 +44,31 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
       }
       const index = chart.hoverIndex;
       const reference = chart.referenceSeries();
-      if (index < 0 || !reference || index >= reference.points.length) return;
+      if (index < 0 || !reference || index >= reference.data.length) return;
 
       const box = ctx.box;
-      const px = ctx.x.map(reference.points[index].x);
+      const px = ctx.x.map(reference.data.x[index]);
       if (px < box.x - 1 || px > box.x + box.w + 1) return;
 
       const hasBars = chart.series.some((s) => s.type === 'bar' && s.visible);
       if (hasBars) dimAround(ctx, reference, index, px);
       else if (showCrosshair) ctx.r.vline(px, box.y, box.y + box.h, ctx.color('crosshair'));
 
-      const refX = reference.points[index].x;
-      const previous = reference.points[Math.max(index - 1, 0)].x;
-      const next = reference.points[Math.min(index + 1, reference.points.length - 1)].x;
+      const refX = reference.data.x[index];
+      const previous = reference.data.x[Math.max(index - 1, 0)];
+      const next = reference.data.x[Math.min(index + 1, reference.data.length - 1)];
       const tolerance = Math.max((next - previous) / 2, Number.EPSILON);
 
       const rows: Row[] = [];
       let total = 0;
       for (const series of chart.series) {
-        if (!series.visible || series.type === 'pie' || series.points.length === 0) continue;
+        if (!series.visible || series.type === 'pie' || series.data.length === 0) continue;
         // Series may sit on their own x grid, so match by value instead of index.
-        const i = series === reference ? index : nearestIndex(series.points, refX);
-        if (Math.abs(series.points[i].x - refX) > tolerance) continue;
-        const raw = series.points[i].y;
+        const i = series === reference ? index : nearestIndex(series.data, refX);
+        if (Math.abs(series.data.x[i] - refX) > tolerance) continue;
+        const raw = series.data.y[i];
+        // A gap has no value to report, so the series drops out of the card.
+        if (!Number.isFinite(raw)) continue;
         total += raw;
         const stack = ctx.stacks.get(series.id);
         const share = stack && series.options.normalize ? `${Math.round(stack.top[i] - stack.base[i])}%` : '';
@@ -79,7 +82,7 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
         if (showPoints && !hasBars && series.type !== 'bar' && series.type !== 'candlestick') {
           const y = ctx.scaleFor(series.axis).map(stack ? stack.top[i] : raw);
           if (y >= box.y - 4 && y <= box.y + box.h + 4) {
-            ctx.r.circle(ctx.x.map(series.points[i].x), y, 4, ctx.color('background'), ctx.colorOf(series), 2.5);
+            ctx.r.circle(ctx.x.map(series.data.x[i]), y, 4, ctx.color('background'), ctx.colorOf(series), 2.5);
           }
         }
       }
@@ -93,11 +96,12 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
         });
       }
 
+      const titleX = reference.data.x[index];
       const title = options.title
-        ? options.title(reference.points[index].x, index)
+        ? options.title(titleX, index)
         : chart.xAxis.type === 'time'
-          ? formatDate(reference.points[index].x)
-          : formatGrouped(reference.points[index].x);
+          ? formatDate(titleX)
+          : formatGrouped(titleX);
 
       drawCard(ctx, title, rows, px);
     },
@@ -106,9 +110,10 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
 
 function dimAround(ctx: DrawContext, reference: SeriesState, index: number, px: number): void {
   const box = ctx.box;
-  const points = reference.points;
-  const neighbour = points[index + 1] ?? points[index - 1];
-  const step = neighbour ? Math.abs(ctx.x.map(neighbour.x) - px) : box.w / 8;
+  const data = reference.data;
+  const near = index + 1 < data.length ? index + 1 : index - 1;
+  const neighbour = near >= 0 && near < data.length ? data.x[near] : null;
+  const step = neighbour !== null ? Math.abs(ctx.x.map(neighbour) - px) : box.w / 8;
   const half = Math.max(2, step / 2);
   const mask = withAlpha(ctx.color('background'), 0.55);
   const c = ctx.r.ctx;
@@ -122,7 +127,9 @@ function drawSliceCard(ctx: DrawContext, seriesId: string, options: TooltipOptio
   const series = ctx.chart.seriesById(seriesId);
   if (!series) return;
   let value = 0;
-  for (const point of series.points) value += point.y;
+  for (let i = 0; i < series.data.length; i++) {
+    if (Number.isFinite(series.data.y[i])) value += series.data.y[i];
+  }
   const rows: Row[] = [
     {
       label: series.name,

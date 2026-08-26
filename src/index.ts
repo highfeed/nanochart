@@ -1,5 +1,13 @@
 export type * from './core/types.js';
 export { Chart, type DomainState } from './core/chart.js';
+export {
+  emptyData,
+  lowerBound,
+  nearestIndex,
+  normalizeData,
+  pointAt,
+  type SeriesData,
+} from './core/data.js';
 export { Renderer, type TextStyle } from './core/renderer.js';
 export { getSeriesRenderer, registerSeries } from './core/registry.js';
 export { Animated, easeInOutCubic, easeLinear, easeOutCubic, easeOutQuint, type Easing } from './core/animate.js';
@@ -15,7 +23,6 @@ export {
   formatPercent,
   formatTime,
   lerp,
-  nearestIndex,
 } from './core/utils.js';
 
 export { createTheme, telegramDark, telegramLight } from './themes/telegram.js';

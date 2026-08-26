@@ -1,5 +1,6 @@
 import type { Animated, Easing } from './animate.js';
 import type { Chart } from './chart.js';
+import type { SeriesData } from './data.js';
 import type { Renderer } from './renderer.js';
 import type { Scale } from './scale.js';
 
@@ -36,12 +37,18 @@ export interface Padding {
   left: number;
 }
 
-/** Accepted shapes: `[5, 7, 3]`, `[[ts, 5], ...]`, `[{ x, y }, ...]` or OHLC objects. */
+/**
+ * Accepted shapes: `[5, 7, 3]`, `[[ts, 5], ...]`, `[{ x, y }, ...]` or OHLC
+ * objects. `null` and `undefined` mark a gap, as does any non-finite number.
+ */
 export type SeriesInput =
-  | readonly number[]
-  | readonly Point[]
-  | readonly OhlcInput[]
-  | readonly (readonly [number, number])[];
+  | readonly (number | null | undefined)[]
+  | readonly (Point | null | undefined)[]
+  | readonly (OhlcInput | null | undefined)[]
+  // Deliberately `number[]` rather than `[number, number]`: an array literal
+  // like `[[1, 2], [3, 4]]` infers as `number[][]`, and a tuple type would
+  // reject it without an assertion at every call site.
+  | readonly (readonly number[] | null | undefined)[];
 
 /** Built-in types plus anything registered through `registerSeries`. */
 export type SeriesType = 'line' | 'area' | 'bar' | 'pie' | 'candlestick' | 'scatter' | (string & {});
@@ -87,7 +94,8 @@ export interface SeriesState {
   readonly index: number;
   name: string;
   axis: AxisId;
-  points: Point[];
+  /** Samples in columnar form; see `SeriesData`. */
+  data: SeriesData;
   visible: boolean;
   alpha: Animated;
 }
