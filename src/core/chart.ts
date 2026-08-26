@@ -255,6 +255,7 @@ export class Chart {
         );
       }
     }
+    this.retargetHover();
     this.updateExtent();
     this.needsLayout = true;
     this.invalidate();
@@ -473,6 +474,11 @@ export class Chart {
       if (!series.visible || series.data.length === 0) continue;
       if (getSeriesRenderer(series.type)?.cartesian === false) continue;
       const index = nearestIndex(series.data, x);
+      // A gap is not a readout. The tooltip drops rows with no value, so
+      // hovering one strokes a crosshair over a card that never draws; a
+      // series that has a value here wins instead, and when none does the
+      // pointer reports nothing at all.
+      if (!Number.isFinite(series.data.y[index])) continue;
       const distance = Math.abs(series.data.x[index] - x);
       // Strictly closer, so series sharing a grid keep the list order they had.
       if (distance < bestDistance) {
@@ -851,16 +857,46 @@ export class Chart {
       this.setHover(-1, null);
       return;
     }
-    this.hoverReference = nearest.series;
-    this.setHover(nearest.index, null);
+    this.setHover(nearest.index, null, nearest.series);
   }
 
-  private setHover(index: number, seriesId: string | null): void {
-    if (index < 0) this.hoverReference = null;
-    if (this.hoverIndex === index && this.hoverSeriesId === seriesId) return;
+  /**
+   * Records the hovered point and reports it once.
+   *
+   * The reference is part of the identity of a hover, not a detail of it. Two
+   * series on their own x grids both number their first sample 0, so
+   * deduplicating on the index alone swallows the move from one to the other
+   * and leaves a listener holding the wrong series.
+   */
+  private setHover(index: number, seriesId: string | null, reference: SeriesState | null = null): void {
+    const next = index < 0 ? null : reference;
+    if (this.hoverIndex === index && this.hoverSeriesId === seriesId && this.hoverReference === next) return;
     this.hoverIndex = index;
     this.hoverSeriesId = seriesId;
+    this.hoverReference = next;
     this.emit('hover', { index, seriesId });
+  }
+
+  /**
+   * Re-points a live hover at a freshly built series list.
+   *
+   * `hoverReference` holds the state object the pointer landed on, and
+   * `setSeries` replaces every one of them. Left alone it keeps a discarded
+   * series alive and the tooltip draws data the chart no longer has, past the
+   * end of the data it does have.
+   */
+  private retargetHover(): void {
+    if (this.hoverSeriesId !== null && !this.seriesById(this.hoverSeriesId)) {
+      this.setHover(-1, null);
+      return;
+    }
+    const previous = this.hoverReference;
+    if (!previous) return;
+    // Same id, new state: the pointer has not moved, so a chart that is only
+    // appending samples keeps its crosshair where the reader put it.
+    const current = this.seriesById(previous.id);
+    if (!current || this.hoverIndex >= current.data.length) this.setHover(-1, null);
+    else this.hoverReference = current;
   }
 }
 
