@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
-[![gzip](https://img.shields.io/badge/gzip-15.3%20kB-brightgreen.svg)](#performance-notes)
+[![gzip](https://img.shields.io/badge/gzip-15.4%20kB-brightgreen.svg)](#performance-notes)
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **15.3 kB gzip** for a line chart with axes and a tooltip; 18.9 kB for all six
+- **15.4 kB gzip** for a line chart with axes and a tooltip; 19.0 kB for all six
   series types plus every plugin — unused ones tree-shake away
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
 - **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching

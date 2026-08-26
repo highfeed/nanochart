@@ -26,11 +26,23 @@ function unitOf(value: number): number {
   return Math.min(COMPACT_UNITS.length - 1, Math.floor(Math.log10(abs) / 3));
 }
 
+/** Past this, a double has no digits left to tell two ticks apart with. */
+const MAX_DECIMALS = 15;
+
+/**
+ * Decimal places needed to tell two values a `step` apart from each other.
+ *
+ * Read off the exponent rather than off a rendered string: `toPrecision`
+ * switches to exponential notation below 1e-6, and counting the digits of
+ * `1.00000000000e-7` took the exponent for decimals. It landed on 6, which was
+ * also the cap, so an axis that fine drew every one of its ticks as a bare
+ * "0" — five identical labels reading as a chart of nothing.
+ */
 function decimalsOf(step: number): number {
   if (!(step > 0)) return 0;
-  const text = step.toPrecision(12).replace(/0+$/, '');
-  const dot = text.indexOf('.');
-  return dot < 0 ? 0 : Math.min(6, text.length - dot - 1);
+  const [mantissa, exponent] = step.toExponential(11).split('e');
+  const digits = mantissa.replace(/0+$/, '').replace('.', '').length - 1;
+  return Math.max(0, Math.min(MAX_DECIMALS, digits - Number(exponent)));
 }
 
 /**

@@ -1,4 +1,5 @@
 import type { Chart } from '../core/chart.js';
+import { nearestIndex } from '../core/data.js';
 import type { Plugin, SeriesState } from '../core/types.js';
 
 export interface A11yOptions {
@@ -116,16 +117,29 @@ export function a11y(options: A11yOptions = {}): Plugin {
       return;
     }
 
+    const cell = (series: SeriesState, i: number): string => {
+      const value = series.data.y[i];
+      return Number.isFinite(value) ? formatY(value, series) : '';
+    };
+
     const rows = Math.min(reference.data.length, maxRows);
     const head = ['', ...shown.map((s) => s.name)];
     const lines: string[][] = [];
     for (let i = 0; i < rows; i++) {
       const x = reference.data.x[i];
+      // Series may sit on their own x grid, so match by value rather than by
+      // row, the way the tooltip does. Pairing by row put numbers side by side
+      // that never occurred together, under an x taken from a third series —
+      // and a reader of this table cannot see that they do not belong.
+      const previous = reference.data.x[Math.max(i - 1, 0)];
+      const next = reference.data.x[Math.min(i + 1, reference.data.length - 1)];
+      const tolerance = Math.max((next - previous) / 2, Number.EPSILON);
       lines.push([
         formatX(x),
-        ...shown.map((s) => {
-          const value = s.data.y[i];
-          return Number.isFinite(value) ? formatY(value, s) : '';
+        ...shown.map((series) => {
+          if (series === reference) return cell(series, i);
+          const j = nearestIndex(series.data, x);
+          return Math.abs(series.data.x[j] - x) <= tolerance ? cell(series, j) : '';
         }),
       ]);
     }
