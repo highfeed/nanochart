@@ -146,6 +146,12 @@ const watermark = {
 };
 ```
 
+`examples/annotations.js` is a plugin that does something: horizontal thresholds and
+vertical bands, placed by the scales of the frame being drawn and painted in the theme's
+colours at that instant, so they follow an animating domain and cross-fade with a theme
+switch — which is the reason to draw an annotation on the canvas rather than position a
+div over it.
+
 Custom series types work the same way:
 
 ```js
@@ -268,10 +274,12 @@ npm start          # builds and serves on http://localhost:4173
 ```
 
 - `examples/index.html` — the basics: lines, bars, stacked areas, dual axes and a donut.
-- `examples/crypto.html` — an exchange dashboard: candles, order book depth, diverging
-  P&L bars, 100% stacked areas, a logarithmic latency axis, a categorical axis, an axis
-  in its own gutter, a series with a collection gap, wheel zoom, keyboard navigation and
-  a custom heatmap series.
+- `examples/crypto.html` — an exchange dashboard: a tape streaming a trade a second
+  through `updateSeries`, price and volume sharing one window over `rangechange`, a
+  headline price above the canvas driven by `hover`, candles, order book depth, diverging
+  P&L bars, 100% stacked areas, a logarithmic latency axis, a categorical axis, an axis in
+  its own gutter, a series with a collection gap, ctrl+wheel zoom, keyboard navigation, a
+  custom heatmap series and a custom annotation plugin.
 
 `npm run check:examples` loads both pages headlessly and fails if anything throws or a
 chart never gets a canvas. CI runs it, and so does the Pages deploy — the examples are

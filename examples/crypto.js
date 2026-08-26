@@ -15,7 +15,8 @@ import {
   yAxis,
   zoom,
 } from '../dist/nanochart.js';
-import { depth, infra, kpi, market, money, trading, users } from './crypto-data.js';
+import { annotate } from './annotations.js';
+import { depth, infra, kpi, market, money, tape, trading, users } from './crypto-data.js';
 
 const root = document.documentElement;
 const charts = [];
@@ -46,6 +47,10 @@ function create(target, options) {
 
 const usd = (value) =>
   value < 0 ? `-$${formatGrouped(Math.round(-value))}` : `$${formatGrouped(Math.round(value))}`;
+// A price the tape quotes to the cent, at a fixed width: a readout that
+// changes every second should not also change size every second.
+const quotes = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const cents = (value) => `$${quotes.format(value)}`;
 const usdShort = (value) => `$${formatCompact(value)}`;
 const percent = (value) => `${value}%`;
 const btc = (value) => `${formatGrouped(value)} BTC`;
@@ -55,6 +60,16 @@ const monthOf = (x) => formats.month(x);
 // off the host clock reports the wrong year outright around 1 January.
 const years = new Intl.DateTimeFormat(LOCALE, { timeZone: ZONE, year: 'numeric' });
 const yearOf = (x) => years.format(x);
+// `Formats` stops at minutes, and a tape that prints every second needs the
+// second. Same locale, same zone, one more field.
+const seconds = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+});
+const clock = (x) => seconds.format(x);
 const signed = (value) => `${value > 0 ? '+' : ''}${value}%`;
 
 const GREEN = { color: '#3cb371', colorDark: '#5fd36f' };
@@ -135,8 +150,90 @@ sparkline('#spark-volume', kpi.volume, BLUE, 'bar');
 sparkline('#spark-users', kpi.users, PURPLE);
 sparkline('#spark-revenue', kpi.revenue, AMBER);
 
+// Live: the only chart on this page whose data moves.
+//
+// Every other series here is generated once and never touched again. This one
+// takes a trade a second through `updateSeries`, which re-parses the one series
+// it names — patching the tape rather than re-reading the dashboard every
+// second, which is what handing the whole list back to `setSeries` would cost.
+const feed = tape();
+let trades = feed.history;
+
+const live = create('#chart-live', {
+  height: 300,
+  x: { type: 'time', format: clock, padding: 0.01 },
+  y: { zero: false, padding: 0.22 },
+  series: [
+    { id: 'tape', type: 'area', name: 'BTC/USDT', lineWidth: 2, fillOpacity: 0.16, data: trades, ...GREEN },
+  ],
+  plugins: [yAxis({ prefix: '$' }), xAxis({ spacing: 88 }), tooltip({ title: clock, format: cents })],
+});
+
+const readout = document.getElementById('live-readout');
+const priceOut = document.getElementById('live-price');
+const deltaOut = document.getElementById('live-delta');
+const stampOut = document.getElementById('live-stamp');
+const pauseButton = document.getElementById('live-pause');
+
+/** Fills the readout from one sample, or from the newest when index < 0. */
+function report(index) {
+  // Columns, not points: the readout reads the same arrays the renderer does.
+  const { x, y, length } = live.seriesById('tape').data;
+  const at = index < 0 ? length - 1 : index;
+  const change = ((y[at] - y[0]) / y[0]) * 100;
+  priceOut.textContent = cents(y[at]);
+  deltaOut.textContent = `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
+  deltaOut.className = `readout__delta readout__delta--${change >= 0 ? 'up' : 'down'}`;
+  stampOut.textContent = clock(x[at]);
+}
+
+// The chart reports where the pointer is; what to say about it is the page's
+// business. A headline price belongs above the canvas in real DOM, where it
+// can be read by something other than an eye, and not in a card that follows
+// the cursor around.
+live.on('hover', ({ index }) => report(index));
+
+let paused = false;
+let timer = 0;
+
+function print() {
+  // One in, the oldest out. A new array each time: `updateSeries` copies the
+  // data it is handed into columns, it does not watch the one it was given.
+  trades = [...trades.slice(1), feed.next()];
+  live.updateSeries('tape', { data: trades });
+  if (live.hoverIndex < 0) report(-1);
+}
+
+const start = () => {
+  if (!timer) timer = window.setInterval(print, feed.step);
+};
+const stop = () => {
+  window.clearInterval(timer);
+  timer = 0;
+};
+
+pauseButton.addEventListener('click', () => {
+  paused = !paused;
+  pauseButton.textContent = paused ? 'Resume' : 'Pause';
+  pauseButton.setAttribute('aria-pressed', String(paused));
+  readout.classList.toggle('readout--paused', paused);
+  if (paused) stop();
+  else start();
+});
+
+// A hidden tab paints nothing and throttles timers to whatever it feels like,
+// so a tape that keeps printing into one is spending a phone's battery on
+// frames no one will ever see.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || paused) stop();
+  else start();
+});
+
+report(-1);
+start();
+
 // Market, hourly
-create('#chart-price-24h', {
+const price = create('#chart-price-24h', {
   height: 320,
   x: { type: 'time' },
   y: { zero: false, padding: 0.08 },
@@ -147,12 +244,14 @@ create('#chart-price-24h', {
     xAxis(),
     tooltip({ title: stamp, format: usd }),
     rangeSelector(),
-    zoom(),
+    // This page is long. Without a modifier the wheel would zoom the chart
+    // under the pointer instead of scrolling past it.
+    zoom({ modifier: 'ctrl' }),
     a11y({ summary: 'BTC/USDT price over 24 hours' }),
   ],
 });
 
-create('#chart-volume-hourly', {
+const volume = create('#chart-volume-hourly', {
   height: 300,
   x: { type: 'time' },
   series: [{ id: 'volume', type: 'bar', name: 'Volume', data: market.volume, ...BLUE }],
@@ -163,6 +262,25 @@ create('#chart-volume-hourly', {
     rangeSelector(),
   ],
 });
+
+/**
+ * One window, two charts.
+ *
+ * `setRange` is the call the scrubber and the wheel already make, so a chart
+ * driven from outside behaves exactly as if it had been dragged. The echo ends
+ * on its own: the second chart reports the window it just took, the first one
+ * is already there, and `setRange` returns without emitting again.
+ *
+ * A range is a fraction of a chart's own x extent, so this says anything only
+ * while both cover the same hours — as price and volume do here.
+ */
+function share(a, b) {
+  a.on('rangechange', ({ from, to }) => b.setRange(from, to, false));
+  b.on('rangechange', ({ from, to }) => a.setRange(from, to, false));
+  b.setRange(...a.range(), false);
+}
+
+share(price, volume);
 
 create('#chart-orders', {
   height: 300,
@@ -319,6 +437,8 @@ create('#chart-monthly-revenue', {
       title: monthOf,
       format: (value, series) => (series.id === 'margin' ? percent(value) : usd(value)),
     }),
+    // A plugin of this page's own, registered like any other.
+    annotate({ lines: [{ value: 40, axis: 'y2', tone: 'positive', label: 'Target 40%' }] }),
     legend(),
   ],
 });
@@ -419,7 +539,10 @@ create('#chart-latency', {
   ],
 });
 
-create('#chart-errors', {
+// The samples collection missed, as a half-open range.
+const OUTAGE = [38, 44];
+
+const errors = create('#chart-errors', {
   height: 300,
   x: { type: 'time' },
   y: { ticks: 4 },
@@ -434,7 +557,7 @@ create('#chart-errors', {
       // null breaks the line rather than claiming the error rate fell. The
       // timestamp stays — a bare null in a series of [x, y] pairs has no x of
       // its own, and would be placed at the epoch.
-      data: infra.errorRate.map(([x, value], i) => [x, i >= 38 && i < 44 ? null : value]),
+      data: infra.errorRate.map(([x, value], i) => [x, i >= OUTAGE[0] && i < OUTAGE[1] ? null : value]),
       ...RED,
     },
   ],
@@ -445,6 +568,26 @@ create('#chart-errors', {
     rangeSelector(),
   ],
 });
+
+// `use()` hands a plugin to a chart that is already on screen — the same list
+// the `plugins` option fills at construction. This one lives next door in
+// `annotations.js`: a threshold and a band, drawn on the canvas rather than
+// positioned over it, so both follow an animating domain and cross-fade with
+// the theme like everything else.
+errors.use(
+  annotate({
+    // The band covers the break in the line, so it reaches from the last
+    // sample before the outage to the first one after it.
+    bands: [
+      {
+        from: infra.errorRate[OUTAGE[0] - 1][0],
+        to: infra.errorRate[OUTAGE[1]][0],
+        label: 'outage',
+      },
+    ],
+    lines: [{ value: 0.5, label: 'SLO 0.5%' }],
+  }),
+);
 
 const toggle = document.getElementById('theme-toggle');
 const label = toggle.querySelector('.switch__label');

@@ -176,8 +176,14 @@ export function tape({ seed = 91, count = 180, start = 68420, step = 1000 } = {}
   };
 
   // Whole seconds, so the ticks the axis picks land on the samples.
-  const now = Math.floor(Date.now() / step) * step;
-  const history = Array.from({ length: count }, (_, i) => print(now - (count - 1 - i) * step));
+  let last = Math.floor(Date.now() / step) * step;
+  const history = Array.from({ length: count }, (_, i) => print(last - (count - 1 - i) * step));
 
-  return { step, history, next: () => print(Date.now()) };
+  return {
+    step,
+    history,
+    // A step past the previous print rather than the wall clock: a tab that
+    // was hidden for a while comes back to a window with no seam in it.
+    next: () => print((last += step)),
+  };
 }
