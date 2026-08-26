@@ -1,4 +1,5 @@
 import {
+  a11y,
   Chart,
   formatCompact,
   formatDate,
@@ -14,6 +15,7 @@ import {
   withAlpha,
   xAxis,
   yAxis,
+  zoom,
 } from '../dist/nanochart.js';
 import { depth, infra, kpi, market, money, trading, users } from './crypto-data.js';
 
@@ -22,7 +24,13 @@ const charts = [];
 let dark = root.dataset.theme === 'dark';
 
 function create(target, options) {
-  const chart = new Chart(target, { theme: dark ? telegramDark : telegramLight, ...options });
+  const chart = new Chart(target, {
+    theme: dark ? telegramDark : telegramLight,
+    // An exchange quotes UTC, whatever timezone the reader happens to be in.
+    timeZone: 'UTC',
+    locale: 'en-GB',
+    ...options,
+  });
   charts.push(chart);
   return chart;
 }
@@ -57,13 +65,16 @@ registerSeries({
     const muted = ctx.color('textMuted');
     const color = ctx.colorOf(series);
 
-    let peak = 1;
-    for (const point of series.points) if (point.y > peak) peak = point.y;
+    // Samples are columnar: parallel typed arrays rather than point objects.
+    const { x: slots, y: values, length } = series.data;
 
-    for (const point of series.points) {
-      const x = ctx.box.x + gutter + (point.x % 24) * cellW;
-      const y = ctx.box.y + Math.floor(point.x / 24) * cellH;
-      ctx.r.fillRoundRect(x + 1, y + 1, cellW - 2, cellH - 2, 3, withAlpha(color, 0.08 + (point.y / peak) * 0.92));
+    let peak = 1;
+    for (let i = 0; i < length; i++) if (values[i] > peak) peak = values[i];
+
+    for (let i = 0; i < length; i++) {
+      const x = ctx.box.x + gutter + (slots[i] % 24) * cellW;
+      const y = ctx.box.y + Math.floor(slots[i] / 24) * cellH;
+      ctx.r.fillRoundRect(x + 1, y + 1, cellW - 2, cellH - 2, 3, withAlpha(color, 0.08 + (values[i] / peak) * 0.92));
     }
 
     for (let row = 0; row < days.length; row++) {
@@ -118,7 +129,14 @@ create('#chart-price-24h', {
   y: { zero: false, padding: 0.08 },
   range: [0.62, 1],
   series: [{ id: 'btc', type: 'line', name: 'BTC/USDT', curve: 'smooth', data: market.price, ...GREEN }],
-  plugins: [yAxis({ prefix: '$' }), xAxis(), tooltip({ title: stamp, format: usd }), rangeSelector()],
+  plugins: [
+    yAxis({ prefix: '$' }),
+    xAxis(),
+    tooltip({ title: stamp, format: usd }),
+    rangeSelector(),
+    zoom(),
+    a11y({ summary: 'BTC/USDT price over 24 hours' }),
+  ],
 });
 
 create('#chart-volume-hourly', {
@@ -171,8 +189,9 @@ create('#chart-candles', {
     tooltip({
       format: usd,
       note: (_value, series, index) => {
-        const point = series.points[index];
-        const change = ((point.close - point.open) / point.open) * 100;
+        // OHLC lives in its own columns alongside x and y.
+        const { open, close } = series.data;
+        const change = ((close[index] - open[index]) / open[index]) * 100;
         return `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`;
       },
     }),
@@ -250,23 +269,6 @@ create('#chart-pnl', {
   ],
 });
 
-create('#chart-flows', {
-  height: 336,
-  x: { type: 'time' },
-  range: [0.4, 1],
-  series: [
-    { id: 'deposits', type: 'bar', name: 'Deposits', stack: 'flow', barWidth: 0.9, data: money.deposits, ...BLUE },
-    { id: 'withdrawals', type: 'bar', name: 'Withdrawals', stack: 'flow', barWidth: 0.9, data: money.withdrawals, ...PURPLE },
-  ],
-  plugins: [
-    yAxis({ prefix: '$' }),
-    xAxis(),
-    tooltip({ total: true, totalLabel: 'Net flow', format: usd }),
-    rangeSelector(),
-    legend(),
-  ],
-});
-
 create('#chart-fees', {
   height: 336,
   x: { type: 'time' },
@@ -316,10 +318,10 @@ create('#chart-yearly', {
     { id: 'profit', type: 'bar', name: 'Profit', data: money.yearProfit, ...GREEN },
   ],
   plugins: [
-    yAxis({ prefix: '$' }),
+    yAxis({ prefix: '$', placement: 'outside' }),
     xAxis({ spacing: 60 }),
     tooltip({ title: yearOf, format: usd }),
-    legend(),
+    legend({ position: 'top', align: 'end' }),
   ],
 });
 
@@ -351,42 +353,6 @@ create('#chart-active-users', {
   plugins: [yAxis(), xAxis(), tooltip(), rangeSelector(), legend()],
 });
 
-create('#chart-signups', {
-  height: 336,
-  x: { type: 'time' },
-  y2: { ticks: 4, zero: false },
-  range: [0.45, 1],
-  series: [
-    { id: 'signups', type: 'bar', name: 'Signups', barWidth: 0.9, data: users.signups, ...BLUE },
-    { id: 'kyc', type: 'line', name: 'KYC passed', axis: 'y2', curve: 'smooth', data: users.kycRate, ...GREEN },
-  ],
-  plugins: [
-    yAxis(),
-    yAxis({ axis: 'y2', tinted: true, suffix: '%' }),
-    xAxis(),
-    tooltip({ format: (value, series) => (series.id === 'kyc' ? percent(value) : formatGrouped(value)) }),
-    rangeSelector(),
-    legend(),
-  ],
-});
-
-create('#chart-retention', {
-  height: 336,
-  x: { type: 'time', format: formatMonth, padding: 0.02 },
-  y: { ticks: 4 },
-  series: [
-    { id: 'd1', type: 'line', name: 'Day 1', curve: 'smooth', data: users.retention.d1, ...GREEN },
-    { id: 'd7', type: 'line', name: 'Day 7', curve: 'smooth', data: users.retention.d7, ...BLUE },
-    { id: 'd30', type: 'line', name: 'Day 30', curve: 'smooth', data: users.retention.d30, ...PURPLE },
-  ],
-  plugins: [
-    yAxis({ suffix: '%' }),
-    xAxis({ spacing: 96 }),
-    tooltip({ title: formatMonth, format: percent }),
-    legend(),
-  ],
-});
-
 create('#chart-heatmap', {
   height: 260,
   padding: { top: 10, right: 4, bottom: 4, left: 4 },
@@ -408,19 +374,24 @@ create('#chart-countries', {
 
 create('#chart-devices', {
   height: 306,
-  series: users.devices.map((device) => ({
-    id: device.id,
-    type: 'pie',
-    name: device.name,
-    data: [device.value],
-  })),
-  plugins: [tooltip(), legend()],
+  x: { type: 'category', categories: users.devices.map((device) => device.name) },
+  series: [
+    { id: 'sessions', type: 'bar', name: 'Sessions', data: users.devices.map((d) => d.value), ...BLUE },
+  ],
+  plugins: [
+    yAxis(),
+    xAxis({ spacing: 60 }),
+    tooltip({ format: formatGrouped }),
+  ],
 });
 
 // Infrastructure
 create('#chart-latency', {
   height: 336,
   x: { type: 'time' },
+  // p50 sits near 15 ms and p99 near 300; on a linear axis the median is a
+  // flat line along the bottom.
+  y: { type: 'log' },
   series: [
     { id: 'p99', type: 'line', name: 'p99', data: infra.p99, ...RED },
     { id: 'p95', type: 'line', name: 'p95', data: infra.p95, ...AMBER },
@@ -440,30 +411,23 @@ create('#chart-errors', {
   x: { type: 'time' },
   y: { ticks: 4 },
   series: [
-    { id: 'errors', type: 'area', name: 'Error rate', curve: 'smooth', fillOpacity: 0.2, data: infra.errorRate, ...RED },
+    {
+      id: 'errors',
+      type: 'area',
+      name: 'Error rate',
+      curve: 'smooth',
+      fillOpacity: 0.2,
+      // Collection was down for six samples. A gap, not a run of zeroes:
+      // null breaks the line rather than claiming the error rate fell.
+      data: infra.errorRate.map((point, i) => (i >= 38 && i < 44 ? null : point)),
+      ...RED,
+    },
   ],
   plugins: [
     yAxis({ suffix: '%' }),
     xAxis(),
     tooltip({ title: stamp, format: percent }),
     rangeSelector(),
-  ],
-});
-
-create('#chart-throughput', {
-  height: 300,
-  x: { type: 'time' },
-  y2: { ticks: 4 },
-  series: [
-    { id: 'rps', type: 'line', name: 'Requests/s', axis: 'y', data: infra.rps, ...BLUE },
-    { id: 'rejected', type: 'bar', name: 'Rejected', axis: 'y2', barWidth: 0.5, data: infra.rejected, ...RED },
-  ],
-  plugins: [
-    yAxis({ tinted: true }),
-    yAxis({ axis: 'y2', tinted: true }),
-    xAxis(),
-    tooltip({ title: stamp }),
-    legend(),
   ],
 });
 

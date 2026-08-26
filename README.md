@@ -265,9 +265,14 @@ npm start          # builds and serves on http://localhost:4173
 ```
 
 - `examples/index.html` — the basics: lines, bars, stacked areas, dual axes and a donut.
-- `examples/crypto.html` — an exchange dashboard with 27 charts: hourly, daily, monthly
-  and yearly data, candles, order book depth, diverging P&L bars, retention, latency
-  percentiles and a custom heatmap series.
+- `examples/crypto.html` — an exchange dashboard: candles, order book depth, diverging
+  P&L bars, 100% stacked areas, a logarithmic latency axis, a categorical axis, an axis
+  in its own gutter, a series with a collection gap, wheel zoom, keyboard navigation and
+  a custom heatmap series.
+
+`npm run check:examples` loads both pages headlessly and fails if anything throws or a
+chart never gets a canvas. CI runs it, and so does the Pages deploy — the examples are
+the only end-to-end use of the public API.
 
 ## License
 

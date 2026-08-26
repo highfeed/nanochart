@@ -75,7 +75,7 @@
           <section class="card card--wide">
             <header class="card__head">
               <h3 class="card__title">BTC/USDT price</h3>
-              <p class="card__hint">Smooth line, drag to zoom</p>
+              <p class="card__hint">Smooth line, scrubber, wheel zoom, keyboard</p>
             </header>
             <div class="chart" id="chart-price-24h"></div>
           </section>
@@ -168,15 +168,7 @@
             <div class="chart" id="chart-pnl"></div>
           </section>
 
-          <section class="card">
-            <header class="card__head">
-              <h3 class="card__title">Deposits vs withdrawals</h3>
-              <p class="card__hint">Diverging bars</p>
-            </header>
-            <div class="chart" id="chart-flows"></div>
-          </section>
-
-          <section class="card card--wide">
+<section class="card card--wide">
             <header class="card__head">
               <h3 class="card__title">Fee revenue by product</h3>
               <p class="card__hint">100% stacked areas</p>
@@ -195,7 +187,7 @@
           <section class="card">
             <header class="card__head">
               <h3 class="card__title">Yearly revenue vs profit</h3>
-              <p class="card__hint">Grouped bars, 7 years</p>
+              <p class="card__hint">Grouped bars, axis in a gutter</p>
             </header>
             <div class="chart" id="chart-yearly"></div>
           </section>
@@ -216,23 +208,7 @@
             <div class="chart" id="chart-active-users"></div>
           </section>
 
-          <section class="card">
-            <header class="card__head">
-              <h3 class="card__title">Signups &amp; KYC</h3>
-              <p class="card__hint">Bars plus a conversion line</p>
-            </header>
-            <div class="chart" id="chart-signups"></div>
-          </section>
-
-          <section class="card">
-            <header class="card__head">
-              <h3 class="card__title">Retention</h3>
-              <p class="card__hint">Day 1 / 7 / 30 by month</p>
-            </header>
-            <div class="chart" id="chart-retention"></div>
-          </section>
-
-          <section class="card">
+<section class="card">
             <header class="card__head">
               <h3 class="card__title">Activity by hour</h3>
               <p class="card__hint">Custom heatmap series</p>
@@ -250,8 +226,8 @@
 
           <section class="card">
             <header class="card__head">
-              <h3 class="card__title">Sessions by platform</h3>
-              <p class="card__hint">Pie</p>
+              <h3 class="card__title">Sessions by device</h3>
+              <p class="card__hint">Categorical axis</p>
             </header>
             <div class="chart" id="chart-devices"></div>
           </section>
@@ -267,7 +243,7 @@
           <section class="card card--wide">
             <header class="card__head">
               <h3 class="card__title">API latency</h3>
-              <p class="card__hint">p50 / p95 / p99, hourly</p>
+              <p class="card__hint">Logarithmic axis</p>
             </header>
             <div class="chart" id="chart-latency"></div>
           </section>
@@ -275,19 +251,12 @@
           <section class="card">
             <header class="card__head">
               <h3 class="card__title">Error rate</h3>
-              <p class="card__hint">Share of failed requests</p>
+              <p class="card__hint">Gap where collection was down</p>
             </header>
             <div class="chart" id="chart-errors"></div>
           </section>
 
-          <section class="card">
-            <header class="card__head">
-              <h3 class="card__title">Throughput</h3>
-              <p class="card__hint">Requests per second and rejects</p>
-            </header>
-            <div class="chart" id="chart-throughput"></div>
-          </section>
-        </div>
+</div>
       </section>
     </main>
 
