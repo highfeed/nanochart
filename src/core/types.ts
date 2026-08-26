@@ -169,6 +169,8 @@ export interface ChartOptions {
   animation?: Partial<AnimationOptions> | false;
   /** Visible x window as fractions of the full extent. */
   range?: readonly [number, number];
+  /** Smallest window the scrubber and zoom will allow. Defaults to 0.02. */
+  minSpan?: number;
   /** Canvas height in CSS pixels; defaults to the container height. */
   height?: number;
   /** BCP 47 tag for tick and tooltip formatting. Defaults to the host locale. */

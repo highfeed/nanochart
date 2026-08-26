@@ -8,7 +8,10 @@ export interface RangeSelectorOptions {
   height?: number;
   /** Gap between the plot and the scrubber. */
   offset?: number;
-  /** Smallest selectable window, as a fraction of the full extent. */
+  /**
+   * Smallest selectable window, as a fraction of the full extent. Cannot go
+   * below the chart's own `minSpan`.
+   */
   minSpan?: number;
   handleWidth?: number;
   radius?: number;
@@ -24,7 +27,7 @@ export function rangeSelector(options: RangeSelectorOptions = {}): Plugin {
   const offset = options.offset ?? 14;
   const handleWidth = options.handleWidth ?? 10;
   const radius = options.radius ?? 7;
-  const minSpan = options.minSpan ?? 0.06;
+
 
   const box: Box = { x: 0, y: 0, w: 0, h: 0 };
   const domains: Record<AxisId, { min: Animated; max: Animated }> = {
@@ -145,6 +148,8 @@ export function rangeSelector(options: RangeSelectorOptions = {}): Plugin {
   };
 
   function apply(chart: DrawContext['chart'], px: number): void {
+    // Resolved per call: the chart owns the floor, the option only raises it.
+    const minSpan = Math.max(options.minSpan ?? 0.06, chart.minSpan);
     const t = clamp((px - box.x) / Math.max(1, box.w), 0, 1);
     const from = chart.rangeFrom.target;
     const to = chart.rangeTo.target;

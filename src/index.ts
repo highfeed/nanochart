@@ -51,6 +51,7 @@ export { xAxis, yAxis, type XAxisOptions, type YAxisOptions } from './plugins/ax
 export { legend, type LegendOptions } from './plugins/legend.js';
 export { tooltip, type TooltipOptions } from './plugins/tooltip.js';
 export { rangeSelector, type RangeSelectorOptions } from './plugins/rangeSelector.js';
+export { zoom, type ZoomOptions } from './plugins/zoom.js';
 
 registerSeries(line);
 registerSeries(area);
