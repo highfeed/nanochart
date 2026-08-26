@@ -10,8 +10,11 @@ interface Slice {
 }
 
 function seriesTotal(series: SeriesState): number {
+  const column = series.data.y;
   let sum = 0;
-  for (const point of series.points) sum += point.y;
+  for (let i = 0; i < series.data.length; i++) {
+    if (Number.isFinite(column[i])) sum += column[i];
+  }
   return sum;
 }
 

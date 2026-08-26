@@ -77,3 +77,26 @@ export function setSize(host: HTMLElement, width: number, height: number): void 
   Object.defineProperty(host, 'clientWidth', { configurable: true, value: width });
   Object.defineProperty(host, 'clientHeight', { configurable: true, value: height });
 }
+
+/**
+ * Controllable clock.
+ *
+ * The chart reads `performance.now()` in several places — render, resize,
+ * pointer handling, every `Animated` — so stubbing it globally is the only way
+ * to advance animations deterministically. Passing a synthetic timestamp to
+ * `draw()` alone desynchronises it from the animations the chart starts itself.
+ */
+export function useClock(start = 1_000): { now: () => number; advance: (ms: number) => void; restore: () => void } {
+  const real = performance.now.bind(performance);
+  let current = start;
+  performance.now = () => current;
+  return {
+    now: () => current,
+    advance: (ms: number) => {
+      current += ms;
+    },
+    restore: () => {
+      performance.now = real;
+    },
+  };
+}
