@@ -235,7 +235,10 @@ start();
 // Market, hourly
 const price = create('#chart-price-24h', {
   height: 320,
-  x: { type: 'time' },
+  // Matches the volume chart's headroom below: a shared window is a fraction
+  // of each chart's own extent, so the two extents have to stay the same
+  // shape. See `share()`.
+  x: { type: 'time', padding: 0.006 },
   y: { zero: false, padding: 0.08 },
   range: [0.62, 1],
   series: [{ id: 'btc', type: 'line', name: 'BTC/USDT', curve: 'smooth', data: market.price, ...GREEN }],
@@ -253,7 +256,10 @@ const price = create('#chart-price-24h', {
 
 const volume = create('#chart-volume-hourly', {
   height: 300,
-  x: { type: 'time' },
+  // A bar is centred on its sample, so the last one loses its outer half to
+  // the edge of the plot without headroom for it. Half a bar is 0.36 of the
+  // step, and the step here is 1/71 of the extent.
+  x: { type: 'time', padding: 0.006 },
   series: [{ id: 'volume', type: 'bar', name: 'Volume', data: market.volume, ...BLUE }],
   plugins: [
     yAxis({ suffix: ' BTC' }),
@@ -284,7 +290,8 @@ share(price, volume);
 
 create('#chart-orders', {
   height: 300,
-  x: { type: 'time' },
+  // Grouped bars share one slot, so the outer edge sits half a slot out too.
+  x: { type: 'time', padding: 0.006 },
   series: [
     { id: 'buys', type: 'bar', name: 'Buy orders', data: market.buys, ...GREEN },
     { id: 'sells', type: 'bar', name: 'Sell orders', data: market.sells, ...RED },
