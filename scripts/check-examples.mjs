@@ -8,39 +8,28 @@
  * catches that before it deploys.
  */
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Window } from 'happy-dom';
+import {
+  installGetContext,
+  MockPath2D,
+  MockResizeObserver,
+  peekContext,
+} from '../test/helpers/canvas-stub.mjs';
 
-const root = resolve(import.meta.dirname, '..');
+// `import.meta.dirname` arrived in Node 20.11, and the package declares 18.
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const pages = [
   { html: 'examples/index.html', script: 'examples/app.js' },
   { html: 'examples/crypto.html', script: 'examples/crypto.js' },
 ];
 
-/** Enough of a Canvas2D to let the renderer run without drawing anything. */
-function stubContext() {
-  return new Proxy(
-    { canvas: null },
-    {
-      get: (target, key) => {
-        if (key === 'measureText') return (text) => ({ width: String(text).length * 7 });
-        if (key === 'canvas') return target.canvas;
-        return () => {};
-      },
-      set: () => true,
-    },
-  );
-}
-
 function prepare(window) {
   const { HTMLCanvasElement, HTMLElement } = window;
-  Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
-    configurable: true,
-    value(kind) {
-      return kind === '2d' ? stubContext() : null;
-    },
-  });
+  // The same recording Canvas2D the unit tests run against, so the two
+  // harnesses cannot disagree about which calls exist.
+  installGetContext(HTMLCanvasElement);
   // happy-dom has no layout, so nothing would ever have a size to draw into.
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 900 });
   Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get: () => 320 });
@@ -51,22 +40,35 @@ function prepare(window) {
     HTMLElement: window.HTMLElement,
     HTMLCanvasElement: window.HTMLCanvasElement,
     localStorage: window.localStorage,
-    requestAnimationFrame: (fn) => setTimeout(() => fn(performance.now()), 0),
-    cancelAnimationFrame: (id) => clearTimeout(id),
-    ResizeObserver: class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-    },
-    Path2D: class {
-      moveTo() {}
-      lineTo() {}
-      rect() {}
-      arc() {}
-      closePath() {}
-    },
+    // On the page's own timer, not Node's: `happyDOM.close()` cancels these,
+    // so a chart still animating cannot wake up after its page is gone and
+    // draw into the next one's window.
+    requestAnimationFrame: (fn) => window.setTimeout(() => fn(window.performance.now()), 0),
+    cancelAnimationFrame: (id) => window.clearTimeout(id),
+    ResizeObserver: MockResizeObserver,
+    Path2D: MockPath2D,
   };
   for (const [key, value] of Object.entries(globals)) globalThis[key] = value;
+}
+
+/**
+ * What each `.chart` slot on the page actually drew.
+ *
+ * A canvas is not evidence of a chart. The defect this check was written for
+ * threw inside the `Chart` constructor, so a missing canvas was a fair proxy
+ * for it; an empty domain, a renderer producing nothing, or a plugin throwing
+ * inside a frame callback all leave the canvas exactly where it was.
+ */
+function inspect(document) {
+  return [...document.querySelectorAll('.chart')].map((element) => {
+    const canvas = element.querySelector('canvas');
+    const context = canvas ? peekContext(canvas) : null;
+    return {
+      id: element.id || '(unnamed)',
+      canvas: canvas !== null,
+      paints: context ? context.paints() : 0,
+    };
+  });
 }
 
 let failures = 0;
@@ -89,13 +91,17 @@ for (const page of pages) {
 
   await new Promise((done) => setTimeout(done, 50));
 
-  const charts = [...window.document.querySelectorAll('.chart')];
-  const blank = charts.filter((el) => !el.querySelector('canvas')).map((el) => el.id || '(unnamed)');
+  const charts = inspect(window.document);
+  const missing = charts.filter((chart) => !chart.canvas).map((chart) => chart.id);
+  const blank = charts.filter((chart) => chart.canvas && chart.paints === 0).map((chart) => chart.id);
+  const paints = charts.reduce((sum, chart) => sum + chart.paints, 0);
 
-  const ok = errors.length === 0 && blank.length === 0 && charts.length > 0;
-  console.log(`${ok ? 'ok  ' : 'FAIL'} ${page.html.padEnd(22)} ${charts.length} charts`);
+  const ok = errors.length === 0 && missing.length === 0 && blank.length === 0 && charts.length > 0;
+  const drew = `${charts.length} charts, ${paints.toLocaleString('en-US')} draw calls`;
+  console.log(`${ok ? 'ok  ' : 'FAIL'} ${page.html.padEnd(22)} ${drew}`);
   for (const error of errors) console.error(`       error: ${error}`);
-  if (blank.length) console.error(`       no canvas: ${blank.join(', ')}`);
+  if (missing.length) console.error(`       no canvas: ${missing.join(', ')}`);
+  if (blank.length) console.error(`       drew nothing: ${blank.join(', ')}`);
   if (!ok) failures++;
 
   window.happyDOM?.close?.();
