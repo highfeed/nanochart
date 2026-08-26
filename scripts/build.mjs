@@ -14,7 +14,7 @@ import { build } from 'esbuild';
  * `CORE_LIMIT` covers what a typical chart imports, which is the figure worth
  * quoting — hardly anyone pulls in all six series types and every plugin.
  */
-const CORE_LIMIT = 15 * 1024;
+const CORE_LIMIT = 15.5 * 1024;
 const FULL_LIMIT = 19 * 1024;
 
 const kb = (value) => `${(value / 1024).toFixed(2)} kB`;

@@ -1,4 +1,4 @@
-import { stepPixels } from '../core/geometry.js';
+import { minStep, stepPixels } from '../core/geometry.js';
 import type { DrawContext, SeriesRenderer, SeriesState } from '../core/types.js';
 import { clamp } from '../core/utils.js';
 
@@ -6,6 +6,9 @@ interface BarMetrics {
   width: number;
   offset: number;
 }
+
+/** Fraction of the x step a bar fills when the caller says nothing. */
+const DEFAULT_WIDTH = 0.72;
 
 /** Stacked series share a slot; independent bar series sit side by side. */
 function barMetrics(ctx: DrawContext, series: SeriesState): BarMetrics {
@@ -18,13 +21,14 @@ function barMetrics(ctx: DrawContext, series: SeriesState): BarMetrics {
   const key = series.options.stack ?? series.id;
   const slot = Math.max(0, slots.indexOf(key));
   const count = Math.max(1, slots.length);
-  const total = stepPixels(ctx, series) * (series.options.barWidth ?? 0.72);
+  const total = stepPixels(ctx, series) * (series.options.barWidth ?? DEFAULT_WIDTH);
   const width = total / count;
   return { width, offset: -total / 2 + slot * width };
 }
 
 export const bar: SeriesRenderer = {
   type: 'bar',
+  slot: (series) => minStep(series.data) * (series.options.barWidth ?? DEFAULT_WIDTH),
   baseline: true,
   draw(ctx, series) {
     const [i0, i1] = ctx.chart.windowIndices(series, ctx.x.d0, ctx.x.d1);

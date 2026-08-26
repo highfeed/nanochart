@@ -223,6 +223,14 @@ export interface SeriesRenderer {
   readonly cartesian?: boolean;
   /** Domain always includes zero (bars, areas). */
   readonly baseline?: boolean;
+  /**
+   * Width of the slot this renderer draws around each sample, in data units.
+   *
+   * A bar is centred on its sample, so half of the first and the last one
+   * falls beyond the extent of the data itself. Reporting the width lets the x
+   * domain leave room for it, the way a category axis leaves half a slot.
+   */
+  slot?(series: SeriesState): number;
   draw(ctx: DrawContext, series: SeriesState): void;
   /** Custom domain contribution for `[i0, i1]`, overriding the default scan. */
   extent?(series: SeriesState, i0: number, i1: number, stacks: StackMap): readonly [number, number] | null;

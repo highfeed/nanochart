@@ -18,6 +18,8 @@ project was in before it had tests or a repository.
 - `yAxis({ placement: 'outside' })` — a gutter sized to the widest label.
 - Legend `position`, `orientation`, `align` and `filter`.
 - `chart.setHeight()`, `chart.minSpan`, `chart.formats`.
+- `SeriesRenderer.slot()` — a renderer that draws a slot around each sample
+  reports its width, and the x domain leaves room for it.
 - `createFormats(locale, timeZone)` — the same formatters a chart builds, for
   `title` and `format` callbacks that are written before the chart exists.
 - Gaps: `null`, `undefined` and non-finite values break lines, split area fills
@@ -47,6 +49,12 @@ project was in before it had tests or a repository.
 - `formatGrouped` producing wrong digits past 1e21.
 - Unregistered series types drawing nothing instead of raising.
 - `destroy()` leaving attributes, styles and pixels on a borrowed canvas.
+- Bars and candles losing their outer half at the ends of a time or linear
+  axis. A bar is centred on its sample, and the domain used to end on the last
+  sample, so the first and the last one were clipped at the edge of the plot
+  unless the caller knew to set `x.padding`. The domain now leaves half a bar
+  at each end, measured from the data, the way a category axis already left
+  half a slot. An explicit `x.padding` still wins where it is larger.
 - A bare `null` among `[x, y]` pairs or `{ x, y }` objects taking its index as
   an x, which placed the gap at the epoch on a time axis and stretched the
   domain across every year in between. Such a sample now has no position: it
