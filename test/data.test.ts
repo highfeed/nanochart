@@ -96,19 +96,52 @@ describe('gaps', () => {
     expect([...data.x]).toEqual([0, 1, 2]);
   });
 
-  it('gives a bare null no position among samples that carry one', () => {
+  it('settles a bare null between the samples it sits between', () => {
     // The index is not a timestamp. Taking it put the gap at the epoch, which
-    // stretched a 72-hour chart across half a century.
+    // stretched a 72-hour chart across half a century; the position it does
+    // have comes from its neighbours, which on an hourly grid is the missing
+    // hour itself.
     const hour = 3_600_000;
     const t = Date.UTC(2026, 7, 26);
     const data = normalizeData([[t, 5], null, [t + 2 * hour, 7]]);
-    expect(Number.isNaN(data.x[1])).toBe(true);
+    expect(data.x[1]).toBe(t + hour);
     expect(Number.isNaN(data.y[1])).toBe(true);
     expect(data.gaps).toBe(true);
     // The gap stays where it was put, so it still breaks the line between the
-    // two samples rather than being sorted to one end.
+    // two samples rather than being moved to one end.
     expect(data.x[0]).toBe(t);
     expect(data.x[2]).toBe(t + 2 * hour);
+  });
+
+  it('spreads a run of nulls evenly across the space they span', () => {
+    const data = normalizeData([[0, 1], null, null, null, [8, 2]]);
+    expect([...data.x]).toEqual([0, 2, 4, 6, 8]);
+  });
+
+  it('gathers a null at either end onto its one neighbour', () => {
+    // There is nothing on the far side to interpolate against, and inventing a
+    // position out there would stretch the extent to reach it.
+    const data = normalizeData([null, [10, 1], [20, 2], null]);
+    expect([...data.x]).toEqual([10, 10, 20, 20]);
+    expect([...data.y].map((v) => (Number.isNaN(v) ? 'gap' : v))).toEqual(['gap', 1, 2, 'gap']);
+  });
+
+  it('treats a sample whose own x is unusable as a gap, not as a reading', () => {
+    // A number with nowhere to go is not a value: placing it would be inventing
+    // the position, and keeping it would put it in the y domain unseen.
+    const data = normalizeData([{ x: 0, y: 1 }, { x: Number.NaN, y: 999 }, { x: 2, y: 3 }]);
+    expect([...data.x]).toEqual([0, 1, 2]);
+    expect(Number.isNaN(data.y[1])).toBe(true);
+  });
+
+  it('keeps the x column searchable past a hole', () => {
+    // `lowerBound` binary-searches this column, and `x[mid] < value` is false
+    // for a NaN, so a hole in the middle sent the search into the wrong half
+    // and everything after it fell out of the window.
+    const data = normalizeData([[0, 5], null, [2, 7], [3, 9]]);
+    expect(lowerBound(data, 2)).toBe(2);
+    expect(lowerBound(data, 3)).toBe(3);
+    expect(lowerBound(data, 4)).toBe(4);
   });
 
   it('does not let an unpositioned gap reorder the series', () => {
@@ -116,12 +149,12 @@ describe('gaps', () => {
     expect([...data.y].map((v) => (Number.isNaN(v) ? 'gap' : v))).toEqual([1, 'gap', 2, 3]);
   });
 
-  it('sends unpositioned gaps to the end when the data has to be sorted', () => {
-    // Unsorted input with position-less holes cannot have both; the ordering
-    // wins, and the choice is at least deterministic.
+  it('sorts a settled gap along with everything else', () => {
+    // Unsorted input with holes in it used to have to give one of the two up.
+    // Once a hole has a position it can be ordered like any other sample.
     const data = normalizeData([[30, 3], null, [10, 1]]);
-    expect([...data.x.slice(0, 2)]).toEqual([10, 30]);
-    expect(Number.isNaN(data.x[2])).toBe(true);
+    expect([...data.x]).toEqual([10, 20, 30]);
+    expect([...data.y].map((v) => (Number.isNaN(v) ? 'gap' : v))).toEqual([1, 'gap', 3]);
   });
 
   it('reports no gaps for clean data', () => {

@@ -107,6 +107,9 @@ describe('candlestick', () => {
     const y = chart.domain('y');
     expect(y.min.target).toBeGreaterThan(0);
     expect(y.min.target).toBeLessThanOrEqual(95);
+    // And the candle on the far side of the hole is still measured: the hole
+    // settles between its neighbours rather than blinding the window search.
+    expect(y.max.target).toBeGreaterThanOrEqual(115);
     chart.destroy();
   });
 

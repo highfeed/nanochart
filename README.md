@@ -48,7 +48,9 @@ const chart = new Chart('#followers', {
 
 `data` accepts `[5, 7, 3]`, `[[timestamp, value], ...]` or `[{ x, y }, ...]`.
 `null`, `undefined` and any non-finite number mark a gap: the line breaks there,
-the fill splits, and the point drops out of the tooltip and the axis domain.
+the fill splits, and the point drops out of the tooltip and the axis domain. A
+bare `null` carries no x of its own, so it takes one from the samples it sits
+between — on a regular grid, the slot that is missing.
 
 ## Series types
 

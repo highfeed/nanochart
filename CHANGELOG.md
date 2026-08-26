@@ -57,9 +57,13 @@ project was in before it had tests or a repository.
   half a slot. An explicit `x.padding` still wins where it is larger.
 - A bare `null` among `[x, y]` pairs or `{ x, y }` objects taking its index as
   an x, which placed the gap at the epoch on a time axis and stretched the
-  domain across every year in between. Such a sample now has no position: it
-  breaks the line where it stands and stays out of the x extent. A `null` in a
-  flat array still belongs at its index, which is a position there.
+  domain across every year in between. Such a sample now takes its position
+  from the samples it sits between — on a regular grid, the missing slot
+  itself — so it breaks the line where it stands without reaching past the
+  data; one at either end settles onto its neighbour. A `null` in a flat array
+  still belongs at its index, which is a position there. A sample whose own x
+  is unusable settles the same way and loses its value with it: a number with
+  nowhere to go is not a reading.
 - A hover surviving `setSeries` and drawing samples from the discarded series;
   it now follows the series by id, or ends when that series is gone.
 - `hover` events swallowed when the pointer moved between two series that
@@ -92,3 +96,11 @@ project was in before it had tests or a repository.
   is exactly what the Vue binding's deep watch hands back: the diff held the
   caller's object and compared each field against itself. It now keeps its own
   snapshot of the fields it reads, and compares series field by field.
+- Everything past a gap dropping out of the visible window, and hovers near one
+  landing on the wrong sample. `lowerBound` binary-searches the x column, and a
+  positionless gap used to sit in that column as a NaN: `x[mid] < value` is
+  false for a NaN, so the search took the wrong half. Positions are finite
+  throughout now, which is what a binary search needs.
+- A tooltip beside a gap admitting rows from series at a completely different
+  x, because the step it measures its reach against was NaN for the same
+  reason.

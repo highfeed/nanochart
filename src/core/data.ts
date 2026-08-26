@@ -10,6 +10,11 @@ import type { OhlcInput, Point, SeriesInput } from './types.js';
  */
 export interface SeriesData {
   readonly length: number;
+  /**
+   * Positions, always finite and never decreasing. A sample that carried no
+   * position of its own is placed between the ones it sits between, so the
+   * column stays something `lowerBound` can binary-search.
+   */
   readonly x: Float64Array;
   readonly y: Float64Array;
   /** OHLC columns, present only for candlestick-shaped input. */
@@ -58,7 +63,8 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
   let sorted = true;
   /** True once a sample has carried an x of its own. */
   let positioned = false;
-  let holed = false;
+  /** True once a sample has not: a bare hole, or an x that was unusable. */
+  let positionless = false;
   /** Last x that had a position, so holes cannot look out of order. */
   let previous = -Infinity;
 
@@ -76,9 +82,8 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
       // A bare hole has no position of its own. `[[t1, 5], null, [t3, 7]]`
       // asks for a break between two timestamps, not for a sample at x = 1:
       // reading the index as an x put the gap at the epoch and stretched a
-      // time axis across every year since. In a flat array the index *is* the
-      // position, and those are filled in below.
-      holed = true;
+      // time axis across every year since. Where it does belong is settled
+      // below, once its neighbours are known.
       x[i] = Number.NaN;
       y[i] = Number.NaN;
     } else if (isOhlc(raw)) {
@@ -104,16 +109,22 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
     }
 
     if (Number.isNaN(y[i])) gaps = true;
-    // Ordering is a question about positions, so holes sit it out.
-    if (!Number.isNaN(x[i])) {
+    // Ordering is a question about positions, so the positionless sit it out.
+    if (Number.isNaN(x[i])) positionless = true;
+    else {
       if (x[i] < previous) sorted = false;
       previous = x[i];
     }
   }
 
-  // Nothing carried an x, so the index is the position after all — including
-  // for the holes, which is what a gap in a flat array means.
-  if (holed && !positioned) for (let i = 0; i < length; i++) x[i] = i;
+  if (positionless) {
+    // A sample with nowhere to be is a gap wherever it ends up.
+    gaps = true;
+    // Nothing carried an x, so the index is the position after all — including
+    // for the holes, which is what a gap in a flat array means.
+    if (!positioned) for (let i = 0; i < length; i++) x[i] = i;
+    else settlePositions(x, y, length);
+  }
 
   const data: SeriesData = {
     length,
@@ -128,21 +139,70 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
   return sorted ? data : sortByX(data);
 }
 
+/**
+ * Places the samples that carried no position of their own.
+ *
+ * A hole has to stay where it was written — that is how it breaks the line
+ * between two particular samples — so it cannot simply be moved to one end.
+ * But leaving it as a NaN left a hole in the middle of the x column, and
+ * `lowerBound` binary-searches that column: `x[mid] < value` is false for a
+ * NaN, so the search took the wrong half and samples past a hole fell out of
+ * the window they belonged to. Spreading the holes evenly between the samples
+ * they sit between puts them where they read as being — on a regular grid,
+ * exactly on the missing slot — and keeps the column monotonic.
+ *
+ * A sample whose own x was unusable settles the same way, and loses its value
+ * with it: a number with nowhere to go is not a reading.
+ */
+function settlePositions(x: Float64Array, y: Float64Array, length: number): void {
+  let first = -1;
+  for (let i = 0; i < length; i++) {
+    if (!Number.isNaN(x[i])) {
+      first = i;
+      break;
+    }
+  }
+  // Not one sample had a usable x, so the index is all there is to go on.
+  if (first < 0) {
+    for (let i = 0; i < length; i++) {
+      x[i] = i;
+      y[i] = Number.NaN;
+    }
+    return;
+  }
+
+  // Before the first placed sample there is nothing to interpolate between, so
+  // the holes gather on their one neighbour. Same at the other end.
+  for (let i = 0; i < first; i++) {
+    x[i] = x[first];
+    y[i] = Number.NaN;
+  }
+
+  let anchor = first;
+  for (let i = first + 1; i < length; i++) {
+    if (Number.isNaN(x[i])) continue;
+    const span = x[i] - x[anchor];
+    for (let hole = anchor + 1; hole < i; hole++) {
+      x[hole] = x[anchor] + (span * (hole - anchor)) / (i - anchor);
+      y[hole] = Number.NaN;
+    }
+    anchor = i;
+  }
+  for (let i = anchor + 1; i < length; i++) {
+    x[i] = x[anchor];
+    y[i] = Number.NaN;
+  }
+}
+
 /** Reorders every column by ascending x, through a single index permutation. */
 function sortByX(data: SeriesData): SeriesData {
   const order = new Uint32Array(data.length);
   for (let i = 0; i < data.length; i++) order[i] = i;
   const x = data.x;
-  // Unpositioned samples have no place in an ordering, and a NaN comparator
-  // result leaves the sort implementation-defined. They go to the end, where
-  // they still read as gaps.
-  order.sort((a, b) => {
-    const ax = x[a];
-    const bx = x[b];
-    if (Number.isNaN(ax)) return Number.isNaN(bx) ? a - b : 1;
-    if (Number.isNaN(bx)) return -1;
-    return ax - bx;
-  });
+  // Ties keep the order they were written in: a hole that settled onto its
+  // neighbour's x has to stay on the side of it that it was written on, or the
+  // line would break one sample early.
+  order.sort((a, b) => x[a] - x[b] || a - b);
 
   const take = (column: Float64Array | null): Float64Array | null => {
     if (!column) return null;

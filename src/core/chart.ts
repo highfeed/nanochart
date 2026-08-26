@@ -556,14 +556,12 @@ export class Chart {
     for (const series of this.series) {
       const data = series.data;
       if (data.length === 0) continue;
-      // Sorted, so the ends are the extremes — but a gap carrying no position
-      // sits at either end as a NaN, and reading it would lose the extent of
-      // every series at once.
-      const first = firstFinite(data.x, 0, data.length, 1);
-      if (first < 0) continue;
-      const last = firstFinite(data.x, data.length - 1, -1, -1);
-      if (data.x[first] < min) min = data.x[first];
-      if (data.x[last] > max) max = data.x[last];
+      // Sorted and finite throughout, so the ends are the extremes. A gap that
+      // carried no position settled between its neighbours before it got here,
+      // and one at either end settled onto the sample next to it, so neither
+      // reaches past the data.
+      if (data.x[0] < min) min = data.x[0];
+      if (data.x[data.length - 1] > max) max = data.x[data.length - 1];
     }
     if (!Number.isFinite(min) || !Number.isFinite(max)) {
       this.xExtent = [0, 1];
@@ -926,14 +924,6 @@ export class Chart {
     if (!current || this.hoverIndex >= current.data.length) this.setHover(-1, null);
     else this.hoverReference = current;
   }
-}
-
-/** Index of the first finite value walking from `from` towards `stop`. */
-function firstFinite(x: Float64Array, from: number, stop: number, step: number): number {
-  for (let i = from; i !== stop; i += step) {
-    if (Number.isFinite(x[i])) return i;
-  }
-  return -1;
 }
 
 function createDomain(): DomainState {
