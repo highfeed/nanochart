@@ -60,7 +60,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "serve": "python3 -m http.server 4173",
     "start": "npm run build && npm run serve",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "site": "npm run build && node scripts/site.mjs"
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^16.0.3",
