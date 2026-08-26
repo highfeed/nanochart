@@ -98,7 +98,8 @@ yAxis({ labelPosition: 'inside', color: '#fff' }); // labels on top of filled ar
 yAxis({ placement: 'outside' });              // gutter beside the plot, sized to fit
 xAxis({ height: 26, spacing: 78, suffix: '%' });
 tooltip({ total: true, format: (value, series, index) => `$${value}` });
-legend({ itemHeight: 30 });
+legend({ position: 'top', align: 'center' });
+legend({ orientation: 'vertical', filter: (s) => s.axis === 'y' });
 rangeSelector({ height: 44, minSpan: 0.06 });
 ```
 
@@ -165,7 +166,7 @@ is a dozen lines. `positive` and `negative` drive candles and any gain/loss colo
 ```ts
 chart.setTheme(theme, animate?)         // animated theme cross-fade
 chart.setSeries(series, animate?)       // replace the whole dataset
-chart.updateSeries(id, patch)           // patch one series
+chart.updateSeries(id, patch)           // patch one series, in place
 chart.toggle(id, visible?)              // show or hide with animation
 chart.setRange(from, to, animate?)      // visible window, 0..1 of the full extent
 chart.range()                           // current window

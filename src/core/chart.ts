@@ -241,11 +241,38 @@ export class Chart {
     this.invalidate();
   }
 
+  /**
+   * Patches one series in place.
+   *
+   * Rebuilding the whole list would re-parse every sample of every series, so
+   * changing a single colour cost as much as replacing the dataset. Only a
+   * change of `type` needs the full path, because the renderer is bound at
+   * build time.
+   */
   updateSeries(id: string, patch: Partial<SeriesOptions>): void {
-    const index = this.series.findIndex((s) => s.id === id);
-    if (index < 0) return;
-    const next = this.series.map((s) => (s.id === id ? { ...s.options, ...patch } : s.options));
-    this.setSeries(next);
+    const series = this.seriesById(id);
+    if (!series) return;
+
+    if (patch.type !== undefined && patch.type !== series.type) {
+      const next = this.series.map((s) => (s.id === id ? { ...s.options, ...patch } : s.options));
+      this.setSeries(next);
+      return;
+    }
+
+    const options = { ...series.options, ...patch };
+    (series as { options: SeriesOptions }).options = options;
+
+    if (patch.data !== undefined) {
+      series.data = normalizeData(options.data);
+      this.updateExtent();
+    }
+    if (patch.name !== undefined) series.name = options.name ?? id;
+    if (patch.axis !== undefined) series.axis = options.axis ?? 'y';
+
+    this.needsLayout = true;
+    this.invalidate();
+    // Routed through toggle() so the animation and the event still happen.
+    if (patch.visible !== undefined) this.toggle(id, patch.visible);
   }
 
   toggle(id: string, visible?: boolean): void {

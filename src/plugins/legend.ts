@@ -6,9 +6,17 @@ export interface LegendOptions {
   /** Pill height in CSS pixels. */
   itemHeight?: number;
   gap?: number;
-  /** Space between the plot and the first row. */
+  /** Space between the plot and the nearest row. */
   offset?: number;
   fontSize?: number;
+  /** Which side of the plot the legend sits on. Defaults to `bottom`. */
+  position?: 'top' | 'bottom';
+  /** `vertical` stacks one item per row, for narrow plots and long names. */
+  orientation?: 'horizontal' | 'vertical';
+  /** Horizontal alignment of each row. Defaults to `start`. */
+  align?: 'start' | 'center' | 'end';
+  /** Return false to keep a series out of the legend entirely. */
+  filter?: (series: SeriesState) => boolean;
 }
 
 interface Item {
@@ -26,34 +34,55 @@ export function legend(options: LegendOptions = {}): Plugin {
   const gap = options.gap ?? 8;
   const offset = options.offset ?? 12;
   const fontSize = options.fontSize ?? 13;
+  const position = options.position ?? 'bottom';
+  const vertical = options.orientation === 'vertical';
+  const align = options.align ?? 'start';
   let items: Item[] = [];
 
-  const layout = (chart: Chart, left: number, top: number, width: number): number => {
+  /** Lays rows out from y=0 and returns the total height they need. */
+  const layout = (chart: Chart, left: number, width: number): number => {
     const font = chart.font(fontSize, 500);
+    const shown = options.filter ? chart.series.filter(options.filter) : chart.series;
     items = [];
-    let x = left;
-    let row = 0;
-    for (const series of chart.series) {
-      const textWidth = chart.renderer.measure(series.name, font);
-      const w = textWidth + CHECK_SIZE + 30;
-      if (x > left && x + w > left + width) {
-        x = left;
-        row++;
+    if (shown.length === 0) return 0;
+
+    const rows: Item[][] = [[]];
+    let x = 0;
+    for (const series of shown) {
+      const w = chart.renderer.measure(series.name, font) + CHECK_SIZE + 30;
+      const row = rows[rows.length - 1];
+      if (vertical ? row.length > 0 : row.length > 0 && x + w > width) {
+        rows.push([]);
+        x = 0;
       }
-      items.push({ series, x, y: top + row * (height + gap), w, h: height });
+      const current = rows[rows.length - 1];
+      current.push({ series, x, y: (rows.length - 1) * (height + gap), w, h: height });
       x += w + gap;
     }
-    return items.length ? (row + 1) * (height + gap) - gap : 0;
+
+    // Alignment is per row, so a short last row sits under the ones above it
+    // the way the caller asked rather than always hugging the left edge.
+    for (const row of rows) {
+      const used = row.reduce((total, item) => total + item.w + gap, -gap);
+      const slack = Math.max(0, width - used);
+      const shift = align === 'center' ? slack / 2 : align === 'end' ? slack : 0;
+      for (const item of row) {
+        item.x += left + shift;
+        items.push(item);
+      }
+    }
+    return rows.length * (height + gap) - gap;
   };
 
   return {
     name: 'nano:legend',
 
     measure(chart, box) {
-      const total = layout(chart, box.x, 0, box.w);
+      const total = layout(chart, box.x, box.w);
       if (total <= 0) return;
       box.h -= total + offset;
-      const top = box.y + box.h + offset;
+      const top = position === 'top' ? box.y : box.y + box.h + offset;
+      if (position === 'top') box.y += total + offset;
       for (const item of items) item.y += top;
     },
 
