@@ -1,5 +1,4 @@
 import { defaultFormats, type Formats } from './intl.js';
-import { formatCompact } from './utils.js';
 
 export interface Scale {
   readonly d0: number;
@@ -75,7 +74,6 @@ export function logTicks(min: number, max: number, count = 6): number[] {
   const decades = last - first;
   const out: number[] = [];
 
-  if (decades <= 0) return [lo, hi];
   const minors = decades * 3 <= count ? [1, 2, 5] : [1];
   const stride = Math.max(1, Math.ceil(decades / Math.max(1, count)));
 
@@ -87,16 +85,6 @@ export function logTicks(min: number, max: number, count = 6): number[] {
     }
   }
   return out;
-}
-
-/** Rounded step that yields roughly `count` intervals across the span. */
-export function niceStep(span: number, count: number): number {
-  if (!(span > 0) || count <= 0) return 1;
-  const raw = span / count;
-  const magnitude = 10 ** Math.floor(Math.log10(raw));
-  const normalized = raw / magnitude;
-  const factor = normalized >= 7.5 ? 10 : normalized >= 3.5 ? 5 : normalized >= 1.5 ? 2 : 1;
-  return factor * magnitude;
 }
 
 /** Smallest 1/2/5-based step that is not smaller than `raw`. */
@@ -153,7 +141,7 @@ const TIME_STEPS = [
   MONTH, 3 * MONTH, 6 * MONTH, YEAR, 2 * YEAR, 5 * YEAR, 10 * YEAR,
 ];
 
-export function timeStep(span: number, count: number): number {
+function timeStep(span: number, count: number): number {
   const raw = span / Math.max(1, count);
   for (const step of TIME_STEPS) {
     if (step >= raw) return step;
@@ -208,5 +196,3 @@ export function timeFormatter(
   if (step < 10 * MONTH) return (value) => formats.day(value);
   return (value) => formats.month(value);
 }
-
-export const defaultValueFormatter = formatCompact;

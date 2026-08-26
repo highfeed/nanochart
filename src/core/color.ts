@@ -184,7 +184,7 @@ export function rgbaToString(color: RGBA): string {
 }
 
 /** Interpolates in premultiplied-ish space, good enough for theme cross-fades. */
-export function mixColors(a: RGBA, b: RGBA, t: number): RGBA {
+function mixColors(a: RGBA, b: RGBA, t: number): RGBA {
   if (t <= 0) return a;
   if (t >= 1) return b;
   return [
