@@ -1,4 +1,5 @@
-import { formatCompact, formatDay, formatMonth, formatTime } from './utils.js';
+import { defaultFormats, type Formats } from './intl.js';
+import { formatCompact } from './utils.js';
 
 export interface Scale {
   readonly d0: number;
@@ -160,54 +161,52 @@ export function timeStep(span: number, count: number): number {
   return TIME_STEPS[TIME_STEPS.length - 1];
 }
 
-export function timeTicks(min: number, max: number, count: number): number[] {
+export function timeTicks(min: number, max: number, count: number, formats = defaultFormats()): number[] {
   const step = timeStep(max - min, count);
   const out: number[] = [];
-  let value = alignTime(min, step);
+  let value = alignTime(min, step, formats);
+  const months = Math.max(1, Math.round(step / MONTH));
   while (value <= max && out.length < 1000) {
     out.push(value);
-    value = step >= MONTH ? addMonths(value, Math.round(step / MONTH)) : value + step;
+    value = step >= MONTH ? formats.addMonths(value, months) : value + step;
   }
   return out;
 }
 
-function alignTime(min: number, step: number): number {
+function alignTime(min: number, step: number, formats: Formats): number {
   if (step < HOUR) return Math.ceil(min / step) * step;
-  // Anchor everything from an hour upwards to local midnight.
-  const date = new Date(min);
-  date.setHours(0, 0, 0, 0);
+
+  // From an hour upwards, ticks anchor to midnight — and midnight is a
+  // property of the chart's timezone, not of the machine drawing it.
   if (step >= MONTH) {
-    date.setDate(1);
     const months = Math.max(1, Math.round(step / MONTH));
-    date.setMonth(Math.ceil(date.getMonth() / months) * months);
-    while (date.getTime() < min) date.setMonth(date.getMonth() + months);
-    return date.getTime();
+    let value = formats.startOfMonth(min);
+    const aligned = Math.ceil(formats.monthOf(value) / months) * months;
+    value = formats.addMonths(value, aligned - formats.monthOf(value));
+    while (value < min) value = formats.addMonths(value, months);
+    return value;
   }
-  let value = date.getTime();
+
+  let value = formats.startOfDay(min);
   while (value < min) value += step;
   return value;
 }
 
-function addMonths(timestamp: number, months: number): number {
-  const date = new Date(timestamp);
-  date.setMonth(date.getMonth() + months);
-  return date.getTime();
-}
-
 /** Picks a readable label format for the current zoom level. */
-export function timeFormatter(span: number, count: number): (value: number) => string {
+export function timeFormatter(
+  span: number,
+  count: number,
+  formats = defaultFormats(),
+): (value: number) => string {
   const step = timeStep(span, count);
   if (step < DAY) {
     // Intraday ranges that cross midnight get a date marker on the day boundary.
-    return span > 2 * DAY ? (value) => (isMidnight(value) ? formatDay(value) : formatTime(value)) : formatTime;
+    return span > 2 * DAY
+      ? (value) => (value === formats.startOfDay(value) ? formats.day(value) : formats.time(value))
+      : (value) => formats.time(value);
   }
-  if (step < 10 * MONTH) return formatDay;
-  return formatMonth;
-}
-
-function isMidnight(value: number): boolean {
-  const date = new Date(value);
-  return date.getHours() === 0 && date.getMinutes() === 0;
+  if (step < 10 * MONTH) return (value) => formats.day(value);
+  return (value) => formats.month(value);
 }
 
 export const defaultValueFormatter = formatCompact;
