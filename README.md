@@ -6,7 +6,7 @@
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **14.7 kB gzip** for a line chart with axes and a tooltip; 17.3 kB for all six
+- **14.7 kB gzip** for a line chart with axes and a tooltip; 18.3 kB for all six
   series types plus every plugin — unused ones tree-shake away
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
 - **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching
@@ -113,6 +113,7 @@ legend({ orientation: 'vertical', filter: (s) => s.axis === 'y' });
 rangeSelector({ height: 44, minSpan: 0.06 });
 zoom();                                       // wheel to zoom, drag to pan
 zoom({ modifier: 'ctrl', drag: false });      // ctrl+wheel only, no panning
+a11y({ summary: 'Revenue by day' });          // keyboard nav + hidden data table
 ```
 
 Tick labels pick their own unit and precision from the axis step, so `$67.5K` and
@@ -164,6 +165,23 @@ Samples are stored columnar — `series.data` holds parallel `Float64Array`s
 (`x`, `y`, and `open`/`high`/`low`/`close` for OHLC input) rather than one
 object per point. `pointAt(series.data, i)` materializes a single `{ x, y }`
 when an object is more convenient than the columns.
+
+## Accessibility
+
+A canvas is opaque to assistive technology: `role="img"` and a label say that a
+picture exists, not what is in it. The `a11y` plugin fixes both halves of that.
+
+```js
+plugins: [tooltip(), a11y({ summary: 'Revenue by day' })]
+```
+
+It renders the data as a visually hidden `<table>` beside the canvas — real
+numbers, one column per series, formatted through the chart's locale — and
+points the canvas at it with `aria-describedby`. It also makes the chart a focus
+stop, so <kbd>←</kbd> and <kbd>→</kbd> walk the points with the tooltip
+following, <kbd>Home</kbd> and <kbd>End</kbd> jump to the ends, and
+<kbd>Esc</kbd> clears. Long series are capped at `maxRows` with the total noted
+in the caption.
 
 ## Themes
 

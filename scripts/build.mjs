@@ -15,7 +15,7 @@ import { build } from 'esbuild';
  * quoting — hardly anyone pulls in all six series types and every plugin.
  */
 const CORE_LIMIT = 15 * 1024;
-const FULL_LIMIT = 18 * 1024;
+const FULL_LIMIT = 19 * 1024;
 
 const kb = (value) => `${(value / 1024).toFixed(2)} kB`;
 
