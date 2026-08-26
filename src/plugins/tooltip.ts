@@ -1,7 +1,7 @@
 import { withAlpha } from '../core/color.js';
 import { nearestIndex } from '../core/data.js';
 import type { DrawContext, Plugin, SeriesState } from '../core/types.js';
-import { formatDate, formatGrouped } from '../core/utils.js';
+
 
 export interface TooltipOptions {
   /** Card heading; receives the x value and the point index. */
@@ -74,7 +74,7 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
         const share = stack && series.options.normalize ? `${Math.round(stack.top[i] - stack.base[i])}%` : '';
         rows.push({
           label: series.name,
-          value: options.format ? options.format(raw, series, i) : formatGrouped(raw),
+          value: options.format ? options.format(raw, series, i) : chart.formats.number(raw),
           note: options.note ? options.note(raw, series, i) : share,
           color: ctx.colorOf(series),
         });
@@ -90,7 +90,7 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
       if (options.total) {
         rows.push({
           label: options.totalLabel ?? 'All',
-          value: formatGrouped(total),
+          value: chart.formats.number(total),
           note: '',
           color: ctx.color('tooltipText'),
         });
@@ -100,8 +100,10 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
       const title = options.title
         ? options.title(titleX, index)
         : chart.xAxis.type === 'time'
-          ? formatDate(titleX)
-          : formatGrouped(titleX);
+          ? chart.formats.date(titleX)
+          : chart.xAxis.type === 'category'
+            ? chart.xAxis.categories?.[Math.round(titleX)] ?? chart.formats.number(titleX)
+            : chart.formats.number(titleX);
 
       drawCard(ctx, title, rows, px);
     },
@@ -133,7 +135,7 @@ function drawSliceCard(ctx: DrawContext, seriesId: string, options: TooltipOptio
   const rows: Row[] = [
     {
       label: series.name,
-      value: options.format ? options.format(value, series, 0) : formatGrouped(value),
+      value: options.format ? options.format(value, series, 0) : ctx.chart.formats.number(value),
       note: '',
       color: ctx.colorOf(series),
     },

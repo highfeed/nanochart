@@ -239,8 +239,8 @@ export function xAxis(options: XAxisOptions = {}): Plugin {
       let ticks: number[];
       let fallback: (value: number) => string;
       if (type === 'time') {
-        ticks = timeTicks(ctx.x.d0, ctx.x.d1, count);
-        fallback = timeFormatter(span, count);
+        ticks = timeTicks(ctx.x.d0, ctx.x.d1, count, chart.formats);
+        fallback = timeFormatter(span, count, chart.formats);
       } else if (type === 'log') {
         ticks = logTicks(ctx.x.d0, ctx.x.d1, count);
         fallback = formatLog;

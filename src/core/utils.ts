@@ -1,3 +1,5 @@
+import { defaultFormats } from './intl.js';
+
 export const clamp = (value: number, min: number, max: number): number =>
   value < min ? min : value > max ? max : value;
 
@@ -59,19 +61,15 @@ export function formatLog(value: number): string {
   return Number.parseFloat(value.toFixed(decimals)).toString();
 }
 
-let grouper: Intl.NumberFormat | undefined;
-
 /**
- * 1234567 -> "1,234,567"
+ * 1234567 -> "1,234,567", in the host locale.
  *
- * Delegates to `Intl`, which every environment that can host a canvas already
- * ships. Grouping by hand breaks at 1e21, where `Number#toString` switches to
- * exponential notation and the digits stop lining up.
+ * Grouping by hand breaks at 1e21, where `Number#toString` switches to
+ * exponential notation and the digits stop lining up. A chart with its own
+ * `locale` formats through `chart.formats.number` instead.
  */
 export function formatGrouped(value: number): string {
-  if (!Number.isFinite(value)) return String(value);
-  grouper ??= new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
-  return grouper.format(value);
+  return defaultFormats().number(value);
 }
 
 function trimZero(value: number, digits: number): string {
@@ -83,32 +81,24 @@ export function formatPercent(value: number): string {
   return `${Math.round(value)}%`;
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
-const pad2 = (value: number): string => (value < 10 ? `0${value}` : `${value}`);
-
-/** "Jan 7" */
+/** "Jan 7", in the host locale and timezone. */
 export function formatDay(timestamp: number): string {
-  const date = new Date(timestamp);
-  return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+  return defaultFormats().day(timestamp);
 }
 
-/** "Sat, 7 Jan 2023" */
+/** "Sat, 7 Jan 2023", in the host locale and timezone. */
 export function formatDate(timestamp: number): string {
-  const date = new Date(timestamp);
-  return `${WEEKDAYS[date.getDay()]}, ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  return defaultFormats().date(timestamp);
 }
 
-/** "14:05" */
+/** "14:05", in the host locale and timezone. */
 export function formatTime(timestamp: number): string {
-  const date = new Date(timestamp);
-  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+  return defaultFormats().time(timestamp);
 }
 
+/** "Jan 2023", in the host locale and timezone. */
 export function formatMonth(timestamp: number): string {
-  const date = new Date(timestamp);
-  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
+  return defaultFormats().month(timestamp);
 }
 
 export function boxContains(box: { x: number; y: number; w: number; h: number }, x: number, y: number): boolean {

@@ -13,6 +13,7 @@ import {
   type Scale,
 } from './scale.js';
 import { lowerBound, nearestIndex, normalizeData } from './data.js';
+import { createFormats, type Formats } from './intl.js';
 import { buildStacks } from './stack.js';
 import { boxContains, clamp } from './utils.js';
 import type {
@@ -77,6 +78,8 @@ export class Chart {
   readonly y2Axis: AxisOptions;
   readonly padding: Padding;
   readonly animation: AnimationOptions | null;
+  /** Date and number formatting for this chart's locale and timezone. */
+  readonly formats: Formats;
 
   private readonly domains: Record<AxisId, DomainState> = {
     y: createDomain(),
@@ -124,6 +127,7 @@ export class Chart {
     this.yAxis = options.y ?? {};
     this.y2Axis = options.y2 ?? {};
     this.padding = { ...DEFAULT_PADDING, ...options.padding };
+    this.formats = createFormats(options.locale, options.timeZone);
     this.animation =
       options.animation === false ? null : { ...DEFAULT_ANIMATION, ...(options.animation ?? {}) };
 

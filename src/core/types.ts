@@ -171,6 +171,13 @@ export interface ChartOptions {
   range?: readonly [number, number];
   /** Canvas height in CSS pixels; defaults to the container height. */
   height?: number;
+  /** BCP 47 tag for tick and tooltip formatting. Defaults to the host locale. */
+  locale?: string;
+  /**
+   * IANA zone for time axes, e.g. `'UTC'` or `'Asia/Tokyo'`. Defaults to the
+   * host zone. Day and month ticks anchor to midnight in this zone.
+   */
+  timeZone?: string;
   ariaLabel?: string;
 }
 

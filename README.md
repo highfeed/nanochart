@@ -61,6 +61,16 @@ y: { type: 'log' }                                // orders of magnitude
 y: { type: 'linear', min: 0, max: 100 }
 ```
 
+```js
+new Chart('#chart', { locale: 'de-DE', timeZone: 'UTC', ... });
+```
+
+Tick and tooltip formatting goes through `Intl`, so month names, weekday names,
+number grouping and decimal separators follow `locale`, and day and month ticks
+anchor to midnight in `timeZone` rather than on the machine drawing the chart.
+Both default to the host. `chart.formats` exposes the same formatters if you
+need them in a custom `format` callback.
+
 A `log` axis ticks whole decades, adds 2s and 5s when there is room, takes each
 label's precision from its own magnitude, and never has zero forced into it — not
 even by a bar or area series. A `category` axis leaves half a slot at each end so
