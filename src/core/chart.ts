@@ -101,7 +101,7 @@ export class Chart {
   private readonly resizeObserver: ResizeObserver | null;
   private readonly themeState: { prev: Theme; next: Theme; mix: Animated };
   /** Set only when the caller pinned a height; otherwise the container rules. */
-  private readonly explicitHeight: number | undefined;
+  private explicitHeight: number | undefined;
   private lastContext: DrawContext | null = null;
   private frameHandle = 0;
   private needsLayout = true;
@@ -335,6 +335,18 @@ export class Chart {
     const set = this.listeners.get(event);
     if (!set) return;
     for (const listener of set) (listener as Listener<K>)(payload);
+  }
+
+  /**
+   * Pins the canvas height, or hands it back to the container when omitted.
+   * Without this the height could only be chosen at construction, which left a
+   * framework wrapper with no way to honour a changed prop.
+   */
+  setHeight(height?: number): void {
+    if (height === this.explicitHeight) return;
+    this.explicitHeight = height;
+    this.canvas.style.height = `${this.measuredHeight()}px`;
+    this.resize();
   }
 
   resize(): void {

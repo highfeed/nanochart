@@ -280,3 +280,21 @@ describe('updateSeries', () => {
     chart.destroy();
   });
 });
+
+describe('setHeight', () => {
+  it('pins a new height', () => {
+    const host = mount(600, 500);
+    const chart = new Chart(host, base({ height: 300 }));
+    chart.setHeight(150);
+    expect(chart.renderer.height).toBe(150);
+    chart.destroy();
+  });
+
+  it('hands the height back to the container when omitted', () => {
+    const host = mount(600, 420);
+    const chart = new Chart(host, base({ height: 300 }));
+    chart.setHeight(undefined);
+    expect(chart.renderer.height).toBe(420);
+    chart.destroy();
+  });
+});

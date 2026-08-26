@@ -30,6 +30,18 @@
       "types": "./dist/core/chart.d.ts",
       "default": "./dist/core/chart.js"
     },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "default": "./dist/react.js"
+    },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "default": "./dist/vue.js"
+    },
+    "./svelte": {
+      "types": "./dist/svelte.d.ts",
+      "default": "./dist/svelte.js"
+    },
     "./*": {
       "types": "./dist/*.d.ts",
       "default": "./dist/*.js"
@@ -65,10 +77,27 @@
   },
   "devDependencies": {
     "@rollup/plugin-node-resolve": "^16.0.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
     "esbuild": "^0.28.1",
     "happy-dom": "^19.0.2",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
     "rollup": "^4.63.0",
     "typescript": "^7.0.2",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "vue": "^3.5.41"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "vue": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
   }
 }
