@@ -11,7 +11,7 @@ function series(id: string, values: number[], options: Record<string, unknown> =
     index: 0,
     name: id,
     axis: 'y',
-    data: normalizeData(values as never),
+    data: normalizeData(values),
     visible: true,
     alpha: { at: () => 1 } as never,
   };

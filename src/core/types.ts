@@ -45,7 +45,10 @@ export type SeriesInput =
   | readonly (number | null | undefined)[]
   | readonly (Point | null | undefined)[]
   | readonly (OhlcInput | null | undefined)[]
-  | readonly (readonly [number, number] | null | undefined)[];
+  // Deliberately `number[]` rather than `[number, number]`: an array literal
+  // like `[[1, 2], [3, 4]]` infers as `number[][]`, and a tuple type would
+  // reject it without an assertion at every call site.
+  | readonly (readonly number[] | null | undefined)[];
 
 /** Built-in types plus anything registered through `registerSeries`. */
 export type SeriesType = 'line' | 'area' | 'bar' | 'pie' | 'candlestick' | 'scatter' | (string & {});
