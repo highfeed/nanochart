@@ -70,6 +70,8 @@ export function a11y(options: A11yOptions = {}): Plugin {
 
     chart.hoverIndex = next;
     chart.hoverSeriesId = null;
+    // Keep the tooltip reading the same series the keys are walking.
+    chart.hoverReference = next < 0 ? null : reference;
     // The tooltip positions itself from the pointer, which has not moved.
     chart.pointerX = next < 0 ? -1 : chart.xScale.map(reference.data.x[next]);
     chart.pointerY = chart.plot.y + chart.plot.h / 2;

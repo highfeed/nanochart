@@ -43,7 +43,8 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
         return;
       }
       const index = chart.hoverIndex;
-      const reference = chart.referenceSeries();
+      // The series under the pointer, which is not always the longest one.
+      const reference = chart.hoverReference ?? chart.referenceSeries();
       if (index < 0 || !reference || index >= reference.data.length) return;
 
       const box = ctx.box;
