@@ -1,5 +1,9 @@
 # nanochart
 
+[![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
+[![gzip](https://img.shields.io/badge/gzip-13.5%20kB-brightgreen.svg)](#performance-notes)
+
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
 - **13.5 kB gzip** for everything: 6 series types, axes, legend, tooltip and a range scrubber
@@ -11,8 +15,11 @@ Tiny canvas charting library with a plugin core and Telegram-style day/night the
 ## Install
 
 ```bash
-npm install nanochart
+npm install nanochart.js
 ```
+
+> The npm package is `nanochart.js` — the bare `nanochart` name was taken by an
+> unrelated placeholder. Everything else, including the import name, is unchanged.
 
 Or drop the global build into a page:
 
