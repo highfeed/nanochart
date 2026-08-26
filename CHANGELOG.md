@@ -45,3 +45,13 @@ project was in before it had tests or a repository.
 - `formatGrouped` producing wrong digits past 1e21.
 - Unregistered series types drawing nothing instead of raising.
 - `destroy()` leaving attributes, styles and pixels on a borrowed canvas.
+- A hover surviving `setSeries` and drawing samples from the discarded series;
+  it now follows the series by id, or ends when that series is gone.
+- `hover` events swallowed when the pointer moved between two series that
+  number the sample under it the same. The hovered series is part of the
+  identity of a hover, and listeners read it from `chart.hoverReference`.
+- A hover landing on a gap, which stroked a crosshair over a tooltip that never
+  drew. A series with a value at the pointer wins, and when none has one the
+  pointer reports nothing.
+- Arrow keys walking the longest series rather than the one the mouse hovered,
+  which put shorter series out of reach of the keyboard.

@@ -51,7 +51,11 @@ export function a11y(options: A11yOptions = {}): Plugin {
   const onKeyDown = (event: KeyboardEvent): void => {
     const chart = host;
     if (!chart) return;
-    const reference = chart.referenceSeries();
+    // The mouse points the hover at the series under it, which is not always
+    // the longest one. Taking the keys back to `referenceSeries()` would jump
+    // the tooltip to an unrelated series mid-walk, and would leave the shorter
+    // series unreachable from the keyboard.
+    const reference = chart.hoverReference ?? chart.referenceSeries();
     if (!reference || reference.data.length === 0) return;
 
     const last = reference.data.length - 1;

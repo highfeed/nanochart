@@ -177,6 +177,46 @@ describe('keyboard', () => {
     chart.destroy();
   });
 
+  it('walks the series the mouse hovered, not the longest one', () => {
+    const host = mount(600, 300);
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      padding: { left: 0, right: 0, top: 0, bottom: 0 },
+      series: [
+        { id: 'long', type: 'line', name: 'Long', data: Array.from({ length: 50 }, (_, i) => [i, i]) },
+        { id: 'short', type: 'line', name: 'Short', data: [[80, 1], [90, 2]] },
+      ],
+      plugins: [tooltip(), a11y()],
+    });
+    chart.render();
+
+    // Hover the right-hand side, where only the short series has samples.
+    (chart as never as { updateHover(s: unknown): void }).updateHover({
+      type: 'move',
+      x: chart.plot.x + chart.plot.w * 0.95,
+      y: chart.plot.y + chart.plot.h / 2,
+      inside: true,
+      originalEvent: null,
+    });
+    expect(chart.hoverReference?.id).toBe('short');
+
+    key(chart, 'ArrowRight');
+    // Falling back to referenceSeries() here jumped the tooltip to `long` and
+    // left `short` unreachable from the keyboard.
+    expect(chart.hoverReference?.id).toBe('short');
+    expect(chart.hoverIndex).toBe(1);
+    chart.destroy();
+  });
+
+  it('falls back to the longest series when nothing is hovered', () => {
+    const { chart } = chartWith();
+    key(chart, 'End');
+    expect(chart.hoverReference?.id).toBe('a');
+    expect(chart.hoverIndex).toBe(2);
+    chart.destroy();
+  });
+
   it('consumes the keys it handles and leaves the rest alone', () => {
     const { chart } = chartWith();
     expect(key(chart, 'ArrowRight').defaultPrevented).toBe(true);
