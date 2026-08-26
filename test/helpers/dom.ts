@@ -100,3 +100,17 @@ export function useClock(start = 1_000): { now: () => number; advance: (ms: numb
     },
   };
 }
+
+/**
+ * Draws one frame and returns only what that frame drew.
+ *
+ * The constructor already paints once, and the recorder does not reset between
+ * frames, so asserting on `texts()` after a plain `render()` sees two frames'
+ * worth of calls and every count comes out doubled.
+ */
+export function drawOnce(chart: { canvas: HTMLCanvasElement; render(): void }): MockContext {
+  const ctx = contextOf(chart.canvas);
+  ctx.clear();
+  chart.render();
+  return ctx;
+}

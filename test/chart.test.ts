@@ -222,3 +222,61 @@ describe('theme cross-fade', () => {
     chart.destroy();
   });
 });
+
+describe('updateSeries', () => {
+  it('patches one series without re-parsing the others', () => {
+    const host = mount();
+    const chart = new Chart(host, base({
+      series: [
+        { id: 'a', type: 'line', data: [1, 2, 3] },
+        { id: 'b', type: 'line', data: [3, 2, 1] },
+      ],
+    }));
+    const untouched = chart.seriesById('b')!.data;
+    chart.updateSeries('a', { color: '#ff0000' });
+    // Same object: series b was never rebuilt.
+    expect(chart.seriesById('b')!.data).toBe(untouched);
+    expect(chart.seriesById('a')!.options.color).toBe('#ff0000');
+    chart.destroy();
+  });
+
+  it('re-normalizes only when data is part of the patch', () => {
+    const host = mount();
+    const chart = new Chart(host, base());
+    const before = chart.seriesById('a')!.data;
+    chart.updateSeries('a', { name: 'Renamed' });
+    expect(chart.seriesById('a')!.data).toBe(before);
+    expect(chart.seriesById('a')!.name).toBe('Renamed');
+
+    chart.updateSeries('a', { data: [9, 8, 7] });
+    expect(chart.seriesById('a')!.data).not.toBe(before);
+    expect(Array.from(chart.seriesById('a')!.data.y)).toEqual([9, 8, 7]);
+    chart.destroy();
+  });
+
+  it('rebuilds when the type changes, since the renderer is bound at build time', () => {
+    const host = mount();
+    const chart = new Chart(host, base());
+    chart.updateSeries('a', { type: 'bar' });
+    expect(chart.seriesById('a')!.type).toBe('bar');
+    chart.destroy();
+  });
+
+  it('still animates and reports a visibility patch', () => {
+    const host = mount();
+    const chart = new Chart(host, base());
+    const seen: unknown[] = [];
+    chart.on('toggle', (e) => seen.push(e));
+    chart.updateSeries('a', { visible: false });
+    expect(chart.seriesById('a')!.visible).toBe(false);
+    expect(seen).toEqual([{ id: 'a', visible: false }]);
+    chart.destroy();
+  });
+
+  it('ignores an unknown id', () => {
+    const host = mount();
+    const chart = new Chart(host, base());
+    expect(() => chart.updateSeries('nope', { color: '#000' })).not.toThrow();
+    chart.destroy();
+  });
+});
