@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { installCanvas, mount } from './helpers/dom.js';
+import { drawOnce, installCanvas, mount } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import { a11y, tooltip } from '../src/index.js';
 
@@ -29,6 +29,23 @@ function tableOf(chart: Chart): HTMLElement {
   const el = chart.canvas.nextElementSibling as HTMLElement;
   expect(el).toBeTruthy();
   return el;
+}
+
+/**
+ * Whether the frame carries the focus ring.
+ *
+ * It is the only round rect inset 1.5px from the canvas corner, and a round
+ * rect starts at its top-left arc — one radius along the top edge.
+ */
+function ringed(chart: Chart): boolean {
+  return drawOnce(chart)
+    .vertices('moveTo')
+    .some(([x, y]) => x === 5.5 && y === 1.5);
+}
+
+/** How the canvas answers `:focus-visible`, standing in for a browser's own. */
+function answerFocusVisible(canvas: HTMLCanvasElement, answer: () => boolean): void {
+  Object.defineProperty(canvas, 'matches', { configurable: true, value: answer });
 }
 
 function key(chart: Chart, name: string) {
@@ -134,6 +151,50 @@ describe('keyboard', () => {
   it('makes the chart a focus stop', () => {
     const { chart } = chartWith();
     expect(chart.canvas.tabIndex).toBe(0);
+    chart.destroy();
+  });
+
+  it('rings the canvas the keyboard focused', () => {
+    const { chart } = chartWith();
+    expect(ringed(chart)).toBe(false);
+    chart.canvas.focus();
+    expect(ringed(chart)).toBe(true);
+    chart.destroy();
+  });
+
+  it('leaves the canvas a click focused alone', () => {
+    const { chart } = chartWith();
+    chart.canvas.focus();
+    // What a pointer leaves behind: focus on the element, but no reason to
+    // show anyone where the keyboard is.
+    answerFocusVisible(chart.canvas, () => false);
+    expect(ringed(chart)).toBe(false);
+    chart.destroy();
+  });
+
+  it('rings it anyway where :focus-visible is not a selector', () => {
+    const { chart } = chartWith();
+    chart.canvas.focus();
+    answerFocusVisible(chart.canvas, () => {
+      throw new SyntaxError("':focus-visible' is not a valid selector");
+    });
+    expect(ringed(chart)).toBe(true);
+    chart.destroy();
+  });
+
+  it('draws a frame when focus arrives, rather than waiting for one', () => {
+    const { chart } = chartWith();
+    let frames = 0;
+    const real = chart.invalidate.bind(chart);
+    chart.invalidate = () => {
+      frames++;
+      real();
+    };
+    chart.canvas.focus();
+    expect(frames).toBeGreaterThan(0);
+    frames = 0;
+    chart.canvas.blur();
+    expect(frames).toBeGreaterThan(0);
     chart.destroy();
   });
 

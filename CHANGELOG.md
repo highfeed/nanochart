@@ -57,3 +57,7 @@ project was in before it had tests or a repository.
   pointer reports nothing.
 - Arrow keys walking the longest series rather than the one the mouse hovered,
   which put shorter series out of reach of the keyboard.
+- `a11y()` ringing every chart a mouse clicked on. The ring says where the
+  keyboard is, so it follows `:focus-visible` rather than plain focus, and
+  focus and blur now draw a frame of their own — a chart at rest used to wear
+  the ring until something unrelated repainted it, and keep it after focus left.
