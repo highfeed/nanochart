@@ -222,6 +222,32 @@ describe('a hover that outlives its data', () => {
     chart.destroy();
   });
 
+  it('keeps the reach of the tooltip finite next to a gap', () => {
+    // The card only admits a series whose nearest sample is within half a step
+    // of the hovered one. That step came out NaN beside a positionless hole,
+    // and every comparison against NaN is false, so the filter let everything
+    // in and the card reported values from a completely different x.
+    const host = mount(600, 300);
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      padding: { left: 0, right: 0, top: 0, bottom: 0 },
+      series: [
+        { id: 'near', type: 'line', name: 'Near', data: [[0, 1], [10, 2], null] },
+        { id: 'far', type: 'line', name: 'Far', data: [[900, 7], [1000, 8]] },
+      ],
+      plugins: [tooltip()],
+    });
+    chart.render();
+    // Onto the last sample before the hole, so the hole is the neighbour the
+    // step is measured against.
+    const fraction = (chart.xScale.map(10) - chart.plot.x) / chart.plot.w;
+    const labels = hoverAt(chart, fraction).join(' ');
+    expect(labels).toContain('Near');
+    expect(labels).not.toContain('Far');
+    chart.destroy();
+  });
+
   it('drops a hover whose series is gone', () => {
     const chart = chartOf([1, 2, 3, 4]);
     move(chart, 0.5);
