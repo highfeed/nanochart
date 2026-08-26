@@ -45,12 +45,19 @@ export function compactFormatter(step: number): (value: number) => string {
   };
 }
 
-/** 1234567 -> "1,234,567" */
+let grouper: Intl.NumberFormat | undefined;
+
+/**
+ * 1234567 -> "1,234,567"
+ *
+ * Delegates to `Intl`, which every environment that can host a canvas already
+ * ships. Grouping by hand breaks at 1e21, where `Number#toString` switches to
+ * exponential notation and the digits stop lining up.
+ */
 export function formatGrouped(value: number): string {
-  const rounded = Math.round(value * 100) / 100;
-  const [int, frac] = Math.abs(rounded).toString().split('.');
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${rounded < 0 ? '-' : ''}${grouped}${frac ? `.${frac}` : ''}`;
+  if (!Number.isFinite(value)) return String(value);
+  grouper ??= new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+  return grouper.format(value);
 }
 
 function trimZero(value: number, digits: number): string {

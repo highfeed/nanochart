@@ -32,6 +32,9 @@ export function buildStacks(
 
     let totals: Float64Array | null = null;
     if (normalize) {
+      // Shares are taken against the sum of magnitudes, not the signed sum.
+      // Summing signed values makes a column of +10 and -10 total zero, and
+      // the whole column then collapses to nothing.
       totals = new Float64Array(length);
       for (const s of list) {
         const alpha = alphaOf(s);
@@ -39,7 +42,7 @@ export function buildStacks(
         const column = s.data.y;
         for (let i = 0; i < s.data.length; i++) {
           const v = column[i];
-          if (Number.isFinite(v)) totals[i] += v * alpha;
+          if (Number.isFinite(v)) totals[i] += Math.abs(v * alpha);
         }
       }
     }
@@ -57,6 +60,7 @@ export function buildStacks(
         const sample = i < s.data.length ? column[i] : Number.NaN;
         const raw = Number.isFinite(sample) ? sample * alpha : 0;
         const value = totals ? (totals[i] > 0 ? (raw / totals[i]) * 100 : 0) : raw;
+        // Negatives keep their sign, so they still grow downwards from zero.
         const cursor = value < 0 ? below : above;
         base[i] = cursor[i];
         top[i] = cursor[i] + value;

@@ -20,7 +20,7 @@ describe('formatGrouped', () => {
 
   // Number#toString switches to exponential notation at 1e21 and the grouping
   // regex then mangles it into a wrong number.
-  it.fails('handles numbers past the exponential-notation threshold', () => {
+  it('handles numbers past the exponential-notation threshold', () => {
     expect(formatGrouped(1e21)).toBe('1,000,000,000,000,000,000,000');
   });
 });

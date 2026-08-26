@@ -17,17 +17,27 @@ describe('parseColor', () => {
     expect(parseColor('transparent')).toEqual([0, 0, 0, 0]);
   });
 
-  // https://github.com/highfeed/nanochart/issues — named CSS colors
-  it.fails('supports named CSS colors', () => {
+  it('supports named CSS colors', () => {
     expect(parseColor('red')).toEqual([255, 0, 0, 1]);
   });
 
   // hsl() currently falls into the generic "function(...)" branch and its
   // arguments are read as if they were r, g, b — a silently wrong colour.
-  it.fails('parses hsl() instead of reading it as rgb', () => {
-    const [r, g, b] = parseColor('hsl(210 90% 50%)');
-    expect([r, g, b]).not.toEqual([210, 90, 50]);
-    expect(b).toBeGreaterThan(r);
+  it('parses hsl() instead of reading it as rgb', () => {
+    const [r, g, b, a] = parseColor('hsl(210 90% 50%)');
+    expect([Math.round(r), Math.round(g), Math.round(b), a]).toEqual([13, 128, 242, 1]);
+  });
+
+  it('parses hsl in every notation', () => {
+    expect(parseColor('hsl(0, 100%, 50%)')).toEqual([255, 0, 0, 1]);
+    expect(parseColor('hsl(120 100% 50%)')).toEqual([0, 255, 0, 1]);
+    expect(parseColor('hsla(240, 100%, 50%, 0.5)')).toEqual([0, 0, 255, 0.5]);
+    expect(parseColor('hsl(0 0% 100%)')).toEqual([255, 255, 255, 1]);
+  });
+
+  it('reads percentage channels and slash alpha in rgb()', () => {
+    expect(parseColor('rgb(100% 0% 0%)')).toEqual([255, 0, 0, 1]);
+    expect(parseColor('rgb(255 0 0 / 50%)')).toEqual([255, 0, 0, 0.5]);
   });
 });
 
@@ -43,7 +53,7 @@ describe('theme cross-fade', () => {
 
   // A series with color: 'red' vanishes mid-switch, because both ends parse
   // as transparent and the mix is rgba(0,0,0,0).
-  it.fails('keeps a named color visible while a theme switch is running', () => {
+  it('keeps a named color visible while a theme switch is running', () => {
     expect(mixColorStrings('red', 'red', 0.5)).not.toBe('rgba(0,0,0,0)');
   });
 });
