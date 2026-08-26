@@ -1,11 +1,9 @@
 import {
   a11y,
   Chart,
+  createFormats,
   formatCompact,
-  formatDate,
   formatGrouped,
-  formatMonth,
-  formatTime,
   legend,
   rangeSelector,
   registerSeries,
@@ -23,12 +21,23 @@ const root = document.documentElement;
 const charts = [];
 let dark = root.dataset.theme === 'dark';
 
+// An exchange quotes UTC, whatever timezone the reader happens to be in.
+const LOCALE = 'en-GB';
+const ZONE = 'UTC';
+/**
+ * The same formatters every chart on this page gets as `chart.formats`.
+ *
+ * A tooltip title is built before its chart exists, so it cannot read
+ * `chart.formats`; the exported `formatDate` and friends would answer in the
+ * reader's own zone and disagree with the axis underneath them by their offset.
+ */
+const formats = createFormats(LOCALE, ZONE);
+
 function create(target, options) {
   const chart = new Chart(target, {
     theme: dark ? telegramDark : telegramLight,
-    // An exchange quotes UTC, whatever timezone the reader happens to be in.
-    timeZone: 'UTC',
-    locale: 'en-GB',
+    timeZone: ZONE,
+    locale: LOCALE,
     ...options,
   });
   charts.push(chart);
@@ -40,8 +49,12 @@ const usd = (value) =>
 const usdShort = (value) => `$${formatCompact(value)}`;
 const percent = (value) => `${value}%`;
 const btc = (value) => `${formatGrouped(value)} BTC`;
-const stamp = (x) => `${formatDate(x)}, ${formatTime(x)}`;
-const yearOf = (x) => String(new Date(x).getFullYear());
+const stamp = (x) => `${formats.date(x)}, ${formats.time(x)}`;
+const monthOf = (x) => formats.month(x);
+// `Formats` has no year of its own; the zone is what matters, and reading it
+// off the host clock reports the wrong year outright around 1 January.
+const years = new Intl.DateTimeFormat(LOCALE, { timeZone: ZONE, year: 'numeric' });
+const yearOf = (x) => years.format(x);
 const signed = (value) => `${value > 0 ? '+' : ''}${value}%`;
 
 const GREEN = { color: '#3cb371', colorDark: '#5fd36f' };
@@ -292,7 +305,7 @@ create('#chart-fees', {
 
 create('#chart-monthly-revenue', {
   height: 336,
-  x: { type: 'time', format: formatMonth, padding: 0.02 },
+  x: { type: 'time', format: monthOf, padding: 0.02 },
   y2: { ticks: 4 },
   series: [
     { id: 'revenue', type: 'bar', name: 'Revenue', barWidth: 0.62, data: money.monthlyRevenue, ...BLUE },
@@ -303,7 +316,7 @@ create('#chart-monthly-revenue', {
     yAxis({ axis: 'y2', tinted: true, suffix: '%' }),
     xAxis({ spacing: 96 }),
     tooltip({
-      title: formatMonth,
+      title: monthOf,
       format: (value, series) => (series.id === 'margin' ? percent(value) : usd(value)),
     }),
     legend(),
@@ -327,7 +340,7 @@ create('#chart-yearly', {
 
 create('#chart-aum', {
   height: 336,
-  x: { type: 'time', format: formatMonth },
+  x: { type: 'time', format: monthOf },
   range: [0.3, 1],
   series: [
     { id: 'aum', type: 'area', name: 'Assets under management', curve: 'smooth', fillOpacity: 0.2, data: money.aum, ...TEAL },
@@ -335,7 +348,7 @@ create('#chart-aum', {
   plugins: [
     yAxis({ prefix: '$' }),
     xAxis({ spacing: 96 }),
-    tooltip({ title: formatMonth, format: usd }),
+    tooltip({ title: monthOf, format: usd }),
     rangeSelector(),
   ],
 });

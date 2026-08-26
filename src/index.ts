@@ -8,6 +8,7 @@ export {
   pointAt,
   type SeriesData,
 } from './core/data.js';
+export { createFormats, type Formats } from './core/intl.js';
 export { Renderer, type TextStyle } from './core/renderer.js';
 export { getSeriesRenderer, registerSeries } from './core/registry.js';
 export { Animated, easeInOutCubic, easeLinear, easeOutCubic, easeOutQuint, type Easing } from './core/animate.js';

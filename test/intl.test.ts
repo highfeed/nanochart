@@ -3,7 +3,7 @@ import { drawOnce, installCanvas, mount } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import { createFormats } from '../src/core/intl.js';
 import { timeTicks } from '../src/core/scale.js';
-import { xAxis } from '../src/index.js';
+import { createFormats as createFormatsFromEntry, xAxis } from '../src/index.js';
 
 beforeAll(installCanvas);
 
@@ -16,6 +16,13 @@ describe('createFormats', () => {
     expect(createFormats('en-US', 'UTC').day(T)).toBe('Jan 7');
     expect(createFormats('de-DE', 'UTC').day(T)).toMatch(/7\.?\s*Jan/);
     expect(createFormats('ru-RU', 'UTC').day(T)).toMatch(/7/);
+  });
+
+  it('is reachable from the package entry', () => {
+    // A tooltip `title` is built before its chart, so it cannot read
+    // `chart.formats`; without this export the only helpers a caller has
+    // answer in the host's zone.
+    expect(createFormatsFromEntry('en-GB', 'UTC').time(T)).toBe('15:30');
   });
 
   it('formats numbers in the requested locale', () => {
