@@ -240,7 +240,12 @@ const price = create('#chart-price-24h', {
   // shape. See `share()`.
   x: { type: 'time', padding: 0.006 },
   y: { zero: false, padding: 0.08 },
-  range: [0.62, 1],
+  // Half a bar before a sample, not part-way through one: the volume chart
+  // shares this window, and its bars are centred on their samples, so a window
+  // opening on a sample centre would cut that bar in half — as opening at 62%
+  // of the extent cut it to a third. This is sample 48 less half a bar, so the
+  // last 24 hours arrive whole at both ends.
+  range: [0.669, 1],
   series: [{ id: 'btc', type: 'line', name: 'BTC/USDT', curve: 'smooth', data: market.price, ...GREEN }],
   plugins: [
     yAxis({ prefix: '$' }),
