@@ -32,20 +32,15 @@ function tableOf(chart: Chart): HTMLElement {
 }
 
 /**
- * Whether the frame carries the focus ring.
+ * Whether the frame carries a ring around the canvas.
  *
- * It is the only round rect inset 1.5px from the canvas corner, and a round
- * rect starts at its top-left arc — one radius along the top edge.
+ * It would be the only round rect inset 1.5px from the canvas corner, and a
+ * round rect starts at its top-left arc — one radius along the top edge.
  */
 function ringed(chart: Chart): boolean {
   return drawOnce(chart)
     .vertices('moveTo')
     .some(([x, y]) => x === 5.5 && y === 1.5);
-}
-
-/** How the canvas answers `:focus-visible`, standing in for a browser's own. */
-function answerFocusVisible(canvas: HTMLCanvasElement, answer: () => boolean): void {
-  Object.defineProperty(canvas, 'matches', { configurable: true, value: answer });
 }
 
 function key(chart: Chart, name: string) {
@@ -154,47 +149,13 @@ describe('keyboard', () => {
     chart.destroy();
   });
 
-  it('rings the canvas the keyboard focused', () => {
+  it('paints no focus ring of its own, focused or not', () => {
     const { chart } = chartWith();
     expect(ringed(chart)).toBe(false);
     chart.canvas.focus();
-    expect(ringed(chart)).toBe(true);
-    chart.destroy();
-  });
-
-  it('leaves the canvas a click focused alone', () => {
-    const { chart } = chartWith();
-    chart.canvas.focus();
-    // What a pointer leaves behind: focus on the element, but no reason to
-    // show anyone where the keyboard is.
-    answerFocusVisible(chart.canvas, () => false);
+    // The browser marks focus on the canvas element, where CSS can reach it.
+    // A ring painted into the picture is one no page can restyle or turn off.
     expect(ringed(chart)).toBe(false);
-    chart.destroy();
-  });
-
-  it('rings it anyway where :focus-visible is not a selector', () => {
-    const { chart } = chartWith();
-    chart.canvas.focus();
-    answerFocusVisible(chart.canvas, () => {
-      throw new SyntaxError("':focus-visible' is not a valid selector");
-    });
-    expect(ringed(chart)).toBe(true);
-    chart.destroy();
-  });
-
-  it('draws a frame when focus arrives, rather than waiting for one', () => {
-    const { chart } = chartWith();
-    let frames = 0;
-    const real = chart.invalidate.bind(chart);
-    chart.invalidate = () => {
-      frames++;
-      real();
-    };
-    chart.canvas.focus();
-    expect(frames).toBeGreaterThan(0);
-    frames = 0;
-    chart.canvas.blur();
-    expect(frames).toBeGreaterThan(0);
     chart.destroy();
   });
 

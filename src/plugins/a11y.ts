@@ -22,27 +22,6 @@ export interface A11yOptions {
 
 let tableId = 0;
 
-/**
- * Whether a focus ring belongs on screen.
- *
- * `document.activeElement` answers a different question: it is the canvas
- * whenever the canvas has focus, and a click gives it focus, so a ring came up
- * around every chart anyone clicked on. `:focus-visible` is the browser's own
- * heuristic for the question actually being asked — false for a pointer, true
- * for Tab, and true from the first key pressed on an element the mouse
- * focused, which is exactly when the arrow keys start moving the tooltip.
- */
-const focusVisible = (canvas: HTMLCanvasElement): boolean => {
-  if (canvas !== document.activeElement) return false;
-  try {
-    return canvas.matches(':focus-visible');
-  } catch {
-    // An engine old enough to reject the selector throws on it. Plain focus is
-    // the best answer left, and a ring too often beats a focus stop with none.
-    return true;
-  }
-};
-
 const HIDDEN =
   'position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;' +
   'clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0';
@@ -58,6 +37,13 @@ const escape = (text: string): string =>
  * that a picture exists, not what is in it. This plugin does two things: it
  * puts the numbers in the DOM as a table only screen readers see, and it makes
  * the chart focusable so the tooltip can be driven from the keyboard.
+ *
+ * Marking that focus is left to the browser. Painting a ring on the canvas
+ * meant deciding for every page what a focus indicator looks like and when it
+ * shows, on an element the page cannot restyle; `:focus-visible` on the canvas
+ * is the same indicator every other control on the page gets, and CSS can
+ * change it. `outline: none` on it is a page saying keyboard users may not see
+ * where they are, so it should say something else instead.
  */
 export function a11y(options: A11yOptions = {}): Plugin {
   const wantTable = options.table ?? true;
@@ -103,13 +89,6 @@ export function a11y(options: A11yOptions = {}): Plugin {
     chart.pointerInside = next >= 0;
     chart.emit('hover', { index: next, seriesId: null });
     chart.invalidate();
-  };
-
-  // Focus draws nothing by itself, so the ring would wait for whatever frame
-  // came next — a hover, a resize, an animation — and on a chart at rest that
-  // is never. Tabbing away leaves the ring on the canvas the same way.
-  const onFocusChange = (): void => {
-    host?.invalidate();
   };
 
   /** True when the series or their samples differ from what the table holds. */
@@ -176,8 +155,6 @@ export function a11y(options: A11yOptions = {}): Plugin {
       if (wantKeyboard) {
         chart.canvas.tabIndex = 0;
         chart.canvas.addEventListener('keydown', onKeyDown);
-        chart.canvas.addEventListener('focus', onFocusChange);
-        chart.canvas.addEventListener('blur', onFocusChange);
       }
       if (options.summary) chart.canvas.setAttribute('aria-label', options.summary);
 
@@ -197,18 +174,10 @@ export function a11y(options: A11yOptions = {}): Plugin {
 
     drawOver(ctx) {
       render(ctx.chart);
-      const chart = ctx.chart;
-      if (!wantKeyboard || !focusVisible(chart.canvas)) return;
-
-      // A visible focus ring, since the canvas is now a focus stop.
-      const r = ctx.r;
-      r.strokeRoundRect(1.5, 1.5, r.width - 3, r.height - 3, 4, ctx.color('crosshair'), 2);
     },
 
     destroy(chart) {
       chart.canvas.removeEventListener('keydown', onKeyDown);
-      chart.canvas.removeEventListener('focus', onFocusChange);
-      chart.canvas.removeEventListener('blur', onFocusChange);
       chart.canvas.removeAttribute('tabindex');
       chart.canvas.removeAttribute('aria-describedby');
       table?.remove();

@@ -192,6 +192,13 @@ following, <kbd>Home</kbd> and <kbd>End</kbd> jump to the ends, and
 <kbd>Esc</kbd> clears. Long series are capped at `maxRows` with the total noted
 in the caption.
 
+The focus itself is marked by the browser, not painted on the canvas, so it
+matches the rest of the page and answers to CSS:
+
+```css
+.chart canvas:focus-visible { outline: 2px solid #3390ec; outline-offset: 2px; }
+```
+
 ## Framework wrappers
 
 Thin bindings over the same core, in their own entry points so the plain
