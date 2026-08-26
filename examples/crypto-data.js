@@ -156,3 +156,28 @@ export const infra = {
   p99: zip(h72, walk({ seed: 83, count: 72, start: 210, noise: 90, swing: 0.3, period: 24, min: 40, decimals: 1 })),
   errorRate: zip(h72, walk({ seed: 84, count: 72, start: 0.24, noise: 0.22, swing: 0.4, period: 24, min: 0.01, decimals: 3 })),
 };
+
+/**
+ * A live tape: a window of trades, and the next one whenever it is asked for.
+ *
+ * Everything above is generated once and never moves. This one exists to be
+ * updated — `next()` returns the trade that just printed, and the caller keeps
+ * a fixed window of them.
+ */
+export function tape({ seed = 91, count = 180, start = 68420, step = 1000 } = {}) {
+  const random = mulberry32(seed);
+  let price = start;
+
+  const print = (x) => {
+    // Mean reversion around the opening price, so a tape left running for an
+    // hour is still quoting bitcoin rather than four digits of drift.
+    price += (start - price) * 0.015 + (random() - 0.5) * 26;
+    return [x, round(price)];
+  };
+
+  // Whole seconds, so the ticks the axis picks land on the samples.
+  const now = Math.floor(Date.now() / step) * step;
+  const history = Array.from({ length: count }, (_, i) => print(now - (count - 1 - i) * step));
+
+  return { step, history, next: () => print(Date.now()) };
+}
