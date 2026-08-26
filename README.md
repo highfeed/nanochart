@@ -2,11 +2,12 @@
 
 [![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
-[![gzip](https://img.shields.io/badge/gzip-15.5%20kB-brightgreen.svg)](#performance-notes)
+[![gzip](https://img.shields.io/badge/gzip-14.3%20kB-brightgreen.svg)](#performance-notes)
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **15.5 kB gzip** for everything: 6 series types, axes, legend, tooltip and a range scrubber
+- **14.3 kB gzip** for a line chart with axes and a tooltip; 16.3 kB for all six
+  series types plus every plugin — unused ones tree-shake away
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
 - **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching
 - **Plugin core**: axes, legend, tooltip and scrubber are plugins, and so is anything you add
@@ -51,6 +52,20 @@ the fill splits, and the point drops out of the tooltip and the axis domain.
 
 ## Series types
 
+### Axes
+
+```js
+x: { type: 'time' }                              // timestamps
+x: { type: 'category', categories: ['Mon', ...] } // one slot per sample
+y: { type: 'log' }                                // orders of magnitude
+y: { type: 'linear', min: 0, max: 100 }
+```
+
+A `log` axis ticks whole decades, adds 2s and 5s when there is room, takes each
+label's precision from its own magnitude, and never has zero forced into it — not
+even by a bar or area series. A `category` axis leaves half a slot at each end so
+edge bars are whole.
+
 | Type | Options | Notes |
 | --- | --- | --- |
 | `line` | `lineWidth`, `curve`, `dash` | `curve` is `linear`, `smooth` or `step` |
@@ -80,6 +95,7 @@ series: [
 yAxis({ prefix: '$' });                       // 67.5K -> $67.5K, -500 -> -$500
 yAxis({ axis: 'y2', tinted: true });          // right axis, tinted with its series color
 yAxis({ labelPosition: 'inside', color: '#fff' }); // labels on top of filled areas
+yAxis({ placement: 'outside' });              // gutter beside the plot, sized to fit
 xAxis({ height: 26, spacing: 78, suffix: '%' });
 tooltip({ total: true, format: (value, series, index) => `$${value}` });
 legend({ itemHeight: 30 });
@@ -89,6 +105,10 @@ rangeSelector({ height: 44, minSpan: 0.06 });
 Tick labels pick their own unit and precision from the axis step, so `$67.5K` and
 `$68K` never collapse into the same label. Two y axes are automatically put on the
 same grid lines.
+
+By default the y axis draws over the plot, Telegram style. `placement: 'outside'`
+reserves a gutter instead, measured against the widest label the current domain
+produces, which is what wide labels and conventional layouts want.
 
 Plugins are drawn in list order and reserve screen space in reverse order, so the last
 plugin in the array sits closest to the canvas edge. A plugin is a plain object:

@@ -2,7 +2,16 @@ import { Animated, easeOutCubic } from './animate.js';
 import { mixColorStrings } from './color.js';
 import { getSeriesRenderer } from './registry.js';
 import { Renderer } from './renderer.js';
-import { nextNiceStep, niceStepUp, scaleLinear, ticksFromStep, type Scale } from './scale.js';
+import {
+  logTicks,
+  niceLogDomain,
+  nextNiceStep,
+  niceStepUp,
+  scaleLinear,
+  scaleLog,
+  ticksFromStep,
+  type Scale,
+} from './scale.js';
 import { lowerBound, nearestIndex, normalizeData } from './data.js';
 import { buildStacks } from './stack.js';
 import { boxContains, clamp } from './utils.js';
@@ -407,13 +416,14 @@ export class Chart {
     const span = e1 - e0 || 1;
     const from = e0 + this.rangeFrom.at(now) * span;
     const to = e0 + this.rangeTo.at(now) * span;
-    this.xScale = scaleLinear(from, to, this.plot.x, this.plot.x + this.plot.w);
+    this.xScale = this.buildScale(this.xAxis, from, to, this.plot.x, this.plot.x + this.plot.w);
     this.stacks = buildStacks(this.series, (s) => s.alpha.at(now));
     this.updateDomains(now, from, to);
 
     for (const axis of AXES) {
       const domain = this.domains[axis];
-      this.scales[axis] = scaleLinear(
+      this.scales[axis] = this.buildScale(
+        this.axisOptions(axis),
         domain.min.at(now),
         domain.max.at(now),
         this.plot.y + this.plot.h,
@@ -468,9 +478,24 @@ export class Chart {
       this.xExtent = [min - pad, min + pad];
       return;
     }
+    if (this.xAxis.type === 'category') {
+      // One slot per sample, so the first and last need half a slot each.
+      const slot = this.categorySlot(min, max);
+      this.xExtent = [min - slot / 2, max + slot / 2];
+      return;
+    }
     // Headroom keeps edge bars and dots from being cut in half.
     const headroom = (this.xAxis.padding ?? 0) * (max - min);
     this.xExtent = [min - headroom, max + headroom];
+  }
+
+  /** Width of one category slot, from the longest series on the axis. */
+  private categorySlot(min: number, max: number): number {
+    let most = 0;
+    for (const series of this.series) {
+      if (series.data.length > most) most = series.data.length;
+    }
+    return most > 1 ? (max - min) / (most - 1) : 1;
   }
 
   /** Raw data extent for an axis over the `[from, to]` x window. */
@@ -530,7 +555,7 @@ export class Chart {
     const hasMax = options.max !== undefined;
     let low = hasMin ? (options.min as number) : raw.min;
     let high = hasMax ? (options.max as number) : raw.max;
-    if ((options.zero ?? raw.baseline) && !hasMin) low = Math.min(0, low);
+    if (options.type !== 'log' && (options.zero ?? raw.baseline) && !hasMin) low = Math.min(0, low);
     if (high <= low) high = low + 1;
 
     const headroom = options.padding ?? 0;
@@ -558,27 +583,62 @@ export class Chart {
     return { min: low, max: high, step };
   }
 
+  axisOptions(axis: AxisId): AxisOptions {
+    return axis === 'y' ? this.yAxis : this.y2Axis;
+  }
+
+  private buildScale(options: AxisOptions, d0: number, d1: number, r0: number, r1: number): Scale {
+    return options.type === 'log' ? scaleLog(d0, d1, r0, r1) : scaleLinear(d0, d1, r0, r1);
+  }
+
   private updateDomains(now: number, from: number, to: number): void {
     const duration = this.duration;
     let intervals: number | undefined;
     for (const axis of AXES) {
-      const options = axis === 'y' ? this.yAxis : this.y2Axis;
+      const options = this.axisOptions(axis);
       const domain = this.domains[axis];
       const raw = this.measureExtent(axis, from, to);
 
       domain.used = raw !== null;
       if (!raw) continue;
 
+      if (options.type === 'log') {
+        // Decades are already round numbers, so a log axis neither snaps to a
+        // step nor shares a tick count with the other axis.
+        const low = options.min ?? niceLogDomain(raw.min, raw.max).min;
+        const high = options.max ?? niceLogDomain(raw.min, raw.max).max;
+        if (domain.min.target !== low || domain.max.target !== high) {
+          domain.step = 0;
+          this.setTicks(domain, logTicks(low, high, options.ticks ?? 6));
+        }
+        domain.min.set(low, now, duration);
+        domain.max.set(high, now, duration);
+        continue;
+      }
+
       const { min: low, max: high, step } = this.niceDomain(options, raw, intervals);
       intervals ??= Math.max(1, Math.round((high - low) / step));
 
       if (domain.step !== step || domain.min.target !== low || domain.max.target !== high) {
         domain.step = step;
-        domain.ticks = ticksFromStep(low, high, step);
+        this.setTicks(domain, ticksFromStep(low, high, step));
       }
       domain.min.set(low, now, duration);
       domain.max.set(high, now, duration);
     }
+  }
+
+  /**
+   * A plugin that reserves space for tick labels — a y axis placed outside the
+   * plot — cannot measure itself until the ticks exist, and the ticks are only
+   * known after layout. Re-running layout when the set changes closes that
+   * loop; it settles in a frame, because tick counts do not depend on the
+   * gutter they produce.
+   */
+  private setTicks(domain: DomainState, ticks: number[]): void {
+    domain.ticks = ticks;
+    this.needsLayout = true;
+    this.invalidate();
   }
 
   private isAnimating(now: number): boolean {

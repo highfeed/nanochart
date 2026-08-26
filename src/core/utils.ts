@@ -45,6 +45,20 @@ export function compactFormatter(step: number): (value: number) => string {
   };
 }
 
+/**
+ * Tick labels for a log axis.
+ *
+ * A log axis has no single step to take precision from — 0.001 and 1M can sit
+ * on the same axis — so each label takes its precision from its own magnitude.
+ */
+export function formatLog(value: number): string {
+  if (!Number.isFinite(value) || value === 0) return '0';
+  const abs = Math.abs(value);
+  if (abs >= 1) return formatCompact(value);
+  const decimals = Math.min(10, Math.ceil(-Math.log10(abs)) + 1);
+  return Number.parseFloat(value.toFixed(decimals)).toString();
+}
+
 let grouper: Intl.NumberFormat | undefined;
 
 /**
