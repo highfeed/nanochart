@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { contextOf, installCanvas, mount } from './helpers/dom.js';
+import { contextOf, drawOnce, installCanvas, mount } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import '../src/index.js';
 
@@ -16,9 +16,7 @@ function chartWith(type: string, data: unknown[], extra: Record<string, unknown>
     padding: { top: 0, right: 0, bottom: 0, left: 0 },
     series: [{ id: 'a', type, data, ...extra } as never],
   });
-  // The constructor already drew one frame; measure only the next one.
-  contextOf(chart.canvas).clear();
-  chart.render();
+  drawOnce(chart);
   return chart;
 }
 
