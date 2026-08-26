@@ -582,9 +582,31 @@ export class Chart {
       this.xExtent = [min - slot / 2, max + slot / 2];
       return;
     }
-    // Headroom keeps edge bars and dots from being cut in half.
-    const headroom = (this.xAxis.padding ?? 0) * (max - min);
+    // Headroom keeps edge bars and dots from being cut in half. Bars ask for
+    // it themselves; `padding` is for everything else, and wins where it is
+    // the larger of the two.
+    const headroom = Math.max((this.xAxis.padding ?? 0) * (max - min), this.slotHeadroom());
     this.xExtent = [min - headroom, max + headroom];
+  }
+
+  /**
+   * Half the widest bar, in data units.
+   *
+   * A bar is centred on its sample, so the outer half of the first and the
+   * last one falls beyond the extent of the data itself and is clipped at the
+   * edge of the plot. A category axis leaves half a slot at each end for
+   * exactly this; on a time or linear axis the slot comes from the samples,
+   * so it is measured rather than assumed.
+   */
+  private slotHeadroom(): number {
+    let widest = 0;
+    for (const series of this.series) {
+      // Grouped bars split one slot between them, so the group is this wide
+      // however many series share it.
+      const width = getSeriesRenderer(series.type)?.slot?.(series) ?? 0;
+      if (width > widest) widest = width;
+    }
+    return Number.isFinite(widest) ? widest / 2 : 0;
   }
 
   /** Width of one category slot, from the longest series on the axis. */

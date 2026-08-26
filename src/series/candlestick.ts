@@ -1,8 +1,11 @@
-import { stepPixels } from '../core/geometry.js';
+import { minStep, stepPixels } from '../core/geometry.js';
 import type { DrawContext, SeriesRenderer, SeriesState } from '../core/types.js';
 import type { Scale } from '../core/scale.js';
 
 const MIN_BODY = 1;
+
+/** Fraction of the x step a candle fills when the caller says nothing. */
+const DEFAULT_WIDTH = 0.62;
 
 /** Candles are unreadable in the range selector, so it gets a close line. */
 function drawCloseLine(ctx: DrawContext, series: SeriesState, i0: number, i1: number, y: Scale): void {
@@ -36,6 +39,7 @@ function drawCloseLine(ctx: DrawContext, series: SeriesState, i0: number, i1: nu
 /** OHLC candles. Rising and falling candles are batched into two paths. */
 export const candlestick: SeriesRenderer = {
   type: 'candlestick',
+  slot: (series) => minStep(series.data) * (series.options.barWidth ?? DEFAULT_WIDTH),
 
   extent(series, i0, i1) {
     const data = series.data;
@@ -66,7 +70,7 @@ export const candlestick: SeriesRenderer = {
     const highs = data.high ?? data.y;
     const lows = data.low ?? data.y;
 
-    const width = Math.max(1, stepPixels(ctx, series) * (series.options.barWidth ?? 0.62));
+    const width = Math.max(1, stepPixels(ctx, series) * (series.options.barWidth ?? DEFAULT_WIDTH));
     const wick = width > 4 ? 1 : 0.5;
     const up = new Path2D();
     const down = new Path2D();
