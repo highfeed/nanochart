@@ -18,6 +18,51 @@ const base = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+describe('x extent with gaps', () => {
+  const HOUR = 3_600_000;
+  const T = Date.UTC(2026, 7, 24);
+  const hourly = (count: number) =>
+    Array.from({ length: count }, (_, i) => [T + i * HOUR, i] as [number, number]);
+
+  it('is not stretched by a gap that carries no position', () => {
+    // The demo's outage, written the way it was written: bare nulls over a
+    // series of [timestamp, value] pairs. Reading their index as a timestamp
+    // put the extent at the epoch and crushed 72 hours into one pixel column.
+    const data: ([number, number] | null)[] = hourly(72);
+    for (let i = 38; i < 44; i++) data[i] = null;
+
+    const host = mount();
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      x: { type: 'time' },
+      series: [{ id: 'a', type: 'line', name: 'A', data }],
+    });
+    const [from, to] = chart.xExtent;
+    expect(from).toBe(T);
+    expect(to).toBe(T + 71 * HOUR);
+    chart.destroy();
+  });
+
+  it('reads past a gap sitting at either end of the series', () => {
+    const data: ([number, number] | null)[] = hourly(6);
+    data[0] = null;
+    data[5] = null;
+
+    const host = mount();
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      x: { type: 'time' },
+      series: [{ id: 'a', type: 'line', name: 'A', data }],
+    });
+    // Taking the ends blindly would read NaN and lose the extent entirely.
+    expect(chart.xExtent[0]).toBe(T + HOUR);
+    expect(chart.xExtent[1]).toBe(T + 4 * HOUR);
+    chart.destroy();
+  });
+});
+
 describe('lifecycle', () => {
   it('creates its own canvas and removes it on destroy', () => {
     const host = mount();
