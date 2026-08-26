@@ -5,7 +5,7 @@ import { a11y, tooltip } from '../src/index.js';
 
 beforeAll(installCanvas);
 
-const DAY = 86_400_000;
+
 
 function chartWith(options: Record<string, unknown> = {}, chartOptions: Record<string, unknown> = {}) {
   const host = mount(600, 300);
