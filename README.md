@@ -1,0 +1,162 @@
+# nanochart
+
+Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
+
+- **13.5 kB gzip** for everything: 6 series types, axes, legend, tooltip and a range scrubber
+- **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
+- **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching
+- **Plugin core**: axes, legend, tooltip and scrubber are plugins, and so is anything you add
+- Written in strict TypeScript, shipped as ESM with type declarations
+
+## Install
+
+```bash
+npm install nanochart
+```
+
+Or drop the global build into a page:
+
+```html
+<script src="nanochart.global.js"></script>
+```
+
+## Quick start
+
+```js
+import { Chart, legend, rangeSelector, telegramLight, tooltip, xAxis, yAxis } from 'nanochart';
+
+const chart = new Chart('#followers', {
+  theme: telegramLight,
+  height: 320,
+  x: { type: 'time' },
+  range: [0.6, 1],
+  series: [
+    { id: 'joined', type: 'line', name: 'Joined', color: '#4bd964', data: joined },
+    { id: 'left', type: 'line', name: 'Left', color: '#fe3c30', data: left },
+  ],
+  plugins: [yAxis(), xAxis(), tooltip(), rangeSelector(), legend()],
+});
+```
+
+`data` accepts `[5, 7, 3]`, `[[timestamp, value], ...]` or `[{ x, y }, ...]`.
+
+## Series types
+
+| Type | Options | Notes |
+| --- | --- | --- |
+| `line` | `lineWidth`, `curve`, `dash` | `curve` is `linear`, `smooth` or `step` |
+| `area` | `fillOpacity`, `curve` | Stack with `stack: 'id'`, add `normalize: true` for 100% stacks |
+| `bar` | `barWidth`, `stack` | Bars sharing a `stack` are stacked, the rest are grouped |
+| `candlestick` | `barWidth`, `upColor`, `downColor` | Data is `{ x, open, high, low, close }` |
+| `scatter` | `radius`, `fillOpacity` | Dots, for correlations and distributions |
+| `pie` | `innerRadius` | One series per slice, so the legend toggles slices |
+
+Every series takes `color`, `colorDark` (used while a dark theme is active), `axis`
+(`'y'` or `'y2'`) and `visible`.
+
+Negative values in a stack grow downwards from zero, so a pair of series makes a
+diverging bar chart:
+
+```js
+series: [
+  { id: 'profit', type: 'bar', name: 'Profit', stack: 'pnl', data: profit },
+  { id: 'loss', type: 'bar', name: 'Loss', stack: 'pnl', data: loss },  // negative values
+];
+```
+
+## Plugins
+
+```js
+yAxis({ prefix: '$' });                       // 67.5K -> $67.5K, -500 -> -$500
+yAxis({ axis: 'y2', tinted: true });          // right axis, tinted with its series color
+yAxis({ labelPosition: 'inside', color: '#fff' }); // labels on top of filled areas
+xAxis({ height: 26, spacing: 78, suffix: '%' });
+tooltip({ total: true, format: (value, series, index) => `$${value}` });
+legend({ itemHeight: 30 });
+rangeSelector({ height: 44, minSpan: 0.06 });
+```
+
+Tick labels pick their own unit and precision from the axis step, so `$67.5K` and
+`$68K` never collapse into the same label. Two y axes are automatically put on the
+same grid lines.
+
+Plugins are drawn in list order and reserve screen space in reverse order, so the last
+plugin in the array sits closest to the canvas edge. A plugin is a plain object:
+
+```js
+const watermark = {
+  name: 'watermark',
+  measure(chart, box) { box.h -= 20; },        // reserve space
+  drawUnder(ctx) { /* painted below the series */ },
+  drawOver(ctx) { /* painted above the series */ },
+  pointer(chart, event) { return false; },      // return true to capture the event
+  animating(chart, now) { return false; },      // keeps the render loop alive
+};
+```
+
+Custom series types work the same way:
+
+```js
+import { registerSeries } from 'nanochart';
+
+registerSeries({
+  type: 'dots',
+  draw(ctx, series) {
+    const y = ctx.scaleFor(series.axis);
+    for (const point of series.points) {
+      ctx.r.circle(ctx.x.map(point.x), y.map(point.y), 3, ctx.colorOf(series));
+    }
+  },
+});
+```
+
+## Themes
+
+`telegramLight` and `telegramDark` ship with the library; `createTheme(base, overrides)`
+derives new ones. `chart.setTheme(theme)` cross-fades every color, including the palette,
+instead of snapping.
+
+```js
+chart.setTheme(dark ? telegramDark : telegramLight);
+```
+
+A theme is a flat map of colors plus a `palette` array and a `dark` flag, so a brand theme
+is a dozen lines. `positive` and `negative` drive candles and any gain/loss coloring.
+
+## API
+
+```ts
+chart.setTheme(theme, animate?)         // animated theme cross-fade
+chart.setSeries(series, animate?)       // replace the whole dataset
+chart.updateSeries(id, patch)           // patch one series
+chart.toggle(id, visible?)              // show or hide with animation
+chart.setRange(from, to, animate?)      // visible window, 0..1 of the full extent
+chart.range()                           // current window
+chart.resize()                          // usually handled by ResizeObserver
+chart.render()                          // force a synchronous frame
+chart.destroy()
+chart.on('hover' | 'select' | 'rangechange' | 'toggle' | 'themechange', handler)
+```
+
+## Performance notes
+
+- One canvas per chart, one `requestAnimationFrame` loop that stops when nothing animates.
+- Line and area paths are decimated to about two samples per pixel column.
+- Bars are batched into a single path per series.
+- Text metrics are cached, and colors are parsed once per string.
+
+## Examples
+
+```bash
+npm install
+npm start          # builds and serves on http://localhost:4173
+```
+
+- `examples/index.html` — the basics: lines, bars, stacked areas, dual axes and a donut.
+- `examples/crypto.html` — an exchange dashboard with 27 charts: hourly, daily, monthly
+  and yearly data, candles, order book depth, diverging P&L bars, retention, latency
+  percentiles and a custom heatmap series.
+
+## License
+
+MIT

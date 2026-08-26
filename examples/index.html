@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <title>nanochart — tiny charts with Telegram themes</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      const stored = localStorage.getItem('nanochart-theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = stored ?? (prefersDark ? 'dark' : 'light');
+    </script>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero__row">
+        <div class="hero__text">
+          <h1 class="hero__title">nanochart</h1>
+          <p class="hero__subtitle">
+            Canvas charts in 13.5 kB. No dependencies, no DOM overlays, plugin core.
+          </p>
+        </div>
+        <button id="theme-toggle" class="switch" type="button" aria-pressed="false">
+          <svg class="switch__icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <path
+              fill="currentColor"
+              d="M20.7 14.3a8.5 8.5 0 0 1-10.9-10.9 1 1 0 0 0-1.3-1.2 10.5 10.5 0 1 0 13.4 13.4 1 1 0 0 0-1.2-1.3Z"
+            />
+          </svg>
+          <span class="switch__label">Night Mode</span>
+        </button>
+      </div>
+      <ul class="chips">
+        <li class="chip">0 dependencies</li>
+        <li class="chip">13.5 kB gzip</li>
+        <li class="chip">line · area · bar · candles · scatter · pie</li>
+        <li class="chip">animated theme switch</li>
+      </ul>
+      <nav class="nav">
+        <a class="nav__link" href="crypto.html">Crypto exchange dashboard — 27 charts</a>
+      </nav>
+    </header>
+
+    <main class="grid">
+      <section class="card">
+        <header class="card__head">
+          <h2 class="card__title">Followers</h2>
+          <p class="card__hint">Drag the scrubber to zoom</p>
+        </header>
+        <div class="chart" id="chart-followers"></div>
+      </section>
+
+      <section class="card">
+        <header class="card__head">
+          <h2 class="card__title">Views by source</h2>
+          <p class="card__hint">Stacked bars</p>
+        </header>
+        <div class="chart" id="chart-sources"></div>
+      </section>
+
+      <section class="card">
+        <header class="card__head">
+          <h2 class="card__title">Message types</h2>
+          <p class="card__hint">100% stacked areas</p>
+        </header>
+        <div class="chart" id="chart-content"></div>
+      </section>
+
+      <section class="card">
+        <header class="card__head">
+          <h2 class="card__title">Messages</h2>
+          <p class="card__hint">Single bar series</p>
+        </header>
+        <div class="chart" id="chart-messages"></div>
+      </section>
+
+      <section class="card">
+        <header class="card__head">
+          <h2 class="card__title">Users &amp; revenue</h2>
+          <p class="card__hint">Two independent y axes</p>
+        </header>
+        <div class="chart" id="chart-apps"></div>
+      </section>
+
+      <section class="card">
+        <header class="card__head">
+          <h2 class="card__title">Orders by fruit</h2>
+          <p class="card__hint">Donut with hover</p>
+        </header>
+        <div class="chart" id="chart-fruits"></div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p>Everything is painted on a single canvas — tooltips, legend and scrubber included.</p>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
