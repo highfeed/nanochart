@@ -431,8 +431,10 @@ create('#chart-errors', {
       curve: 'smooth',
       fillOpacity: 0.2,
       // Collection was down for six samples. A gap, not a run of zeroes:
-      // null breaks the line rather than claiming the error rate fell.
-      data: infra.errorRate.map((point, i) => (i >= 38 && i < 44 ? null : point)),
+      // null breaks the line rather than claiming the error rate fell. The
+      // timestamp stays — a bare null in a series of [x, y] pairs has no x of
+      // its own, and would be placed at the epoch.
+      data: infra.errorRate.map(([x, value], i) => [x, i >= 38 && i < 44 ? null : value]),
       ...RED,
     },
   ],
