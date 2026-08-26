@@ -9,9 +9,11 @@ const CACHE_LIMIT = 512;
  *
  * Hex, `rgb()` and `hsl()` are read directly, along with the basic colour
  * keywords, so the common cases work anywhere — including in a worker or on a
- * server, where there is no canvas to ask. Anything more exotic (`rebeccapurple`,
- * `lab()`, `color()`) is handed to a canvas, which normalizes it into a form
- * the fast path can read; without a canvas those resolve to transparent.
+ * server, where there is no canvas to ask. Anything more exotic is handed to a
+ * canvas: most of it (`rebeccapurple`, `hwb()`) normalizes into a form the fast
+ * path can read, and what has no sRGB spelling at all (`oklch()`, `lab()`,
+ * `color()`) is painted and read back off the pixel. Without a canvas those
+ * resolve to transparent.
  */
 export function parseColor(input: string): RGBA {
   const cached = cache.get(input);
@@ -32,6 +34,11 @@ const NAMED: Record<string, number> = {
 };
 
 function parse(value: string): RGBA {
+  return parseDirect(value) ?? viaCanvas(value);
+}
+
+/** The notations that can be read without a canvas. Null when this is not one. */
+function parseDirect(value: string): RGBA | null {
   if (value === 'transparent' || value === 'none') return TRANSPARENT;
   if (value.charCodeAt(0) === 35) return parseHex(value.slice(1));
 
@@ -53,12 +60,12 @@ function parse(value: string): RGBA {
         alpha,
       );
     }
-    return viaCanvas(value);
+    return null;
   }
 
   const named = NAMED[value.toLowerCase()];
   if (named !== undefined) return [(named >> 16) & 255, (named >> 8) & 255, named & 255, 1];
-  return viaCanvas(value);
+  return null;
 }
 
 function hslToRgb(hue: number, s: number, l: number, alpha: number): RGBA {
@@ -111,24 +118,62 @@ function expand(charCode: number): number {
 
 let probe: CanvasRenderingContext2D | null | undefined;
 
+/** One pixel, kept for the life of the module and read from rarely. */
+function probeContext(): CanvasRenderingContext2D | null {
+  if (probe === undefined) {
+    if (typeof document === 'undefined') {
+      probe = null;
+    } else {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      probe = canvas.getContext('2d', { willReadFrequently: true });
+    }
+  }
+  return probe;
+}
+
 /** Normalizes an exotic color by letting the canvas resolve it. */
 function viaCanvas(value: string): RGBA {
-  if (probe === undefined) {
-    probe = typeof document === 'undefined' ? null : document.createElement('canvas').getContext('2d');
-  }
-  if (!probe) return TRANSPARENT;
+  const ctx = probeContext();
+  if (!ctx) return TRANSPARENT;
 
   // An unparseable value leaves fillStyle untouched, so a known sentinel tells
   // "the host rejected this" apart from "the host resolved it to black".
-  probe.fillStyle = '#000000';
-  probe.fillStyle = value;
-  const first = probe.fillStyle;
-  probe.fillStyle = '#ffffff';
-  probe.fillStyle = value;
-  if (first !== probe.fillStyle) return TRANSPARENT;
+  ctx.fillStyle = '#000000';
+  ctx.fillStyle = value;
+  const first = ctx.fillStyle;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = value;
+  if (first !== ctx.fillStyle) return TRANSPARENT;
 
-  const resolved = String(first);
-  return resolved.charCodeAt(0) === 35 ? parseHex(resolved.slice(1)) : parse(resolved);
+  // Anything with an sRGB spelling comes back as hex or rgb(), which is the
+  // whole point of the round trip. A wide-gamut color has no such spelling, so
+  // it serializes unchanged — `oklch()`, `lab()` and `color()` are handed back
+  // verbatim — and reading that with `parse` would land straight back here and
+  // recurse until the stack gave out. Painting it is the way out.
+  return parseDirect(String(first)) ?? readPixel(ctx, value);
+}
+
+/** Paints the color and reads the pixel, for colors that have no sRGB name. */
+function readPixel(ctx: CanvasRenderingContext2D, value: string): RGBA {
+  // A partial canvas — a stub, a server-side shim — has a fillStyle but no
+  // pixels behind it.
+  if (typeof ctx.getImageData !== 'function') return TRANSPARENT;
+  try {
+    // `copy` writes the source straight through, so a translucent color keeps
+    // its alpha instead of being composited onto whatever the pixel held.
+    ctx.globalCompositeOperation = 'copy';
+    ctx.fillStyle = value;
+    ctx.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
+    return a === 0 ? TRANSPARENT : [r, g, b, a / 255];
+  } catch {
+    // Reading pixels back is blocked outright by some privacy settings.
+    return TRANSPARENT;
+  } finally {
+    ctx.globalCompositeOperation = 'source-over';
+  }
 }
 
 export function rgbaToString(color: RGBA): string {

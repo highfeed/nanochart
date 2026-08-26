@@ -39,9 +39,21 @@ const DAY_LABEL: DateOptions = { month: 'short', day: 'numeric' };
 const DATE_LABEL: DateOptions = { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' };
 const TIME_LABEL: DateOptions = { hour: '2-digit', minute: '2-digit', hour12: false };
 const MONTH_LABEL: DateOptions = { month: 'short', year: 'numeric' };
+/**
+ * The wall clock, read as arithmetic rather than shown to anyone.
+ *
+ * These parts are fed to `Number` and then to `Date.UTC`, so they are pinned to
+ * Latin digits and the Gregorian calendar. A locale whose default numbering
+ * system is not Latin (`ar-EG`, `fa-IR`, `bn-BD`) hands back digits `Number`
+ * reads as NaN, and one on another calendar (`th-TH`) a year off by centuries;
+ * either way the next `formatToParts` is handed an invalid instant and throws
+ * mid-frame. The labels above are the ones a reader sees, and they keep the
+ * locale's own digits and calendar.
+ */
 const PARTS: DateOptions = {
   year: 'numeric', month: '2-digit', day: '2-digit',
   hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false,
+  numberingSystem: 'latn', calendar: 'gregory',
 };
 
 export function createFormats(locale?: string, timeZone?: string): Formats {
@@ -59,6 +71,9 @@ export function createFormats(locale?: string, timeZone?: string): Formats {
 
   /** Wall-clock fields in the configured zone. */
   const fields = (timestamp: number): number[] => {
+    // `Intl` throws on a non-finite instant. Carrying the NaN forward costs a
+    // tick; letting the exception out costs the frame the chart was drawing.
+    if (!Number.isFinite(timestamp)) return [NaN, NaN, NaN, NaN, NaN, NaN];
     const parts = dtf(PARTS).formatToParts(timestamp);
     const out: Record<string, number> = {};
     for (const part of parts) {

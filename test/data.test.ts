@@ -27,6 +27,30 @@ describe('normalizeData', () => {
     expect(Array.from(data.y)).toEqual([1, 2, 0]);
   });
 
+  it('leaves a gap, not a zero, where an OHLC series has no candle', () => {
+    // The columns are allocated at the first OHLC sample and only OHLC samples
+    // write to them. A zero left in the rest is a price: it draws a candle on
+    // the baseline and drags the whole axis down to meet it.
+    const data = normalizeData([
+      { x: 1, open: 100, high: 110, low: 95, close: 105 },
+      null,
+      { x: 3, open: 105, high: 115, low: 100, close: 112 },
+    ] as never);
+    expect(Array.from(data.low!)).toEqual([95, NaN, 100]);
+    expect(Array.from(data.high!)).toEqual([110, NaN, 115]);
+    expect(Array.from(data.open!)).toEqual([100, NaN, 105]);
+    expect(Array.from(data.close!)).toEqual([105, NaN, 112]);
+  });
+
+  it('leaves a gap for a plain point sitting among candles', () => {
+    const data = normalizeData([
+      { x: 1, y: 7 },
+      { x: 2, open: 100, high: 110, low: 95, close: 105 },
+    ] as never);
+    expect(Array.from(data.low!)).toEqual([NaN, 95]);
+    expect(Array.from(data.y)).toEqual([7, 105]);
+  });
+
   it('stores OHLC in their own columns and mirrors close into y', () => {
     const data = normalizeData([{ x: 0, open: 1, high: 4, low: 0, close: 3 }]);
     expect(data.open && Array.from(data.open)).toEqual([1]);

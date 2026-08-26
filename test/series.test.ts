@@ -94,6 +94,33 @@ describe('candlestick', () => {
     expect(y.min.target).toBeLessThanOrEqual(5);
     chart.destroy();
   });
+
+  it('keeps the price axis off zero when a candle is missing', () => {
+    // `extent` scans the OHLC columns directly rather than going through `y`,
+    // so a hole that left zeros behind used to read as a candle at zero and
+    // pull the whole domain down to it.
+    const chart = chartWith('candlestick', [
+      { x: 0, open: 100, high: 110, low: 95, close: 105 },
+      null,
+      { x: 2, open: 105, high: 115, low: 100, close: 112 },
+    ]);
+    const y = chart.domain('y');
+    expect(y.min.target).toBeGreaterThan(0);
+    expect(y.min.target).toBeLessThanOrEqual(95);
+    chart.destroy();
+  });
+
+  it('measures every candle when the hole is not between them', () => {
+    const chart = chartWith('candlestick', [
+      { x: 0, open: 100, high: 110, low: 95, close: 105 },
+      { x: 2, open: 105, high: 115, low: 100, close: 112 },
+      null,
+    ]);
+    const y = chart.domain('y');
+    expect(y.min.target).toBeGreaterThan(0);
+    expect(y.max.target).toBeGreaterThanOrEqual(115);
+    chart.destroy();
+  });
 });
 
 describe('pie', () => {

@@ -82,6 +82,40 @@ describe('ChartController', () => {
     controller.destroy();
   });
 
+  it('follows an options object that was edited in place', () => {
+    // A wrapper may hand back the very object it was given — a Vue `deep`
+    // watch does — so the diff cannot compare it against itself.
+    const host = mount();
+    const options = base();
+    const controller = new ChartController(host, options);
+
+    options.series = [{ id: 'a', type: 'line', name: 'A', data: [1, 2, 3, 4, 5] }];
+    controller.update(options);
+    expect(controller.chart.series[0].data.length).toBe(5);
+
+    options.height = 150;
+    controller.update(options);
+    expect(controller.chart.renderer.height).toBe(150);
+
+    options.theme = telegramDark;
+    controller.update(options);
+    expect(controller.chart.theme).toBe(telegramDark);
+    controller.destroy();
+  });
+
+  it('follows a series object that was edited in place', () => {
+    const host = mount();
+    const options = base();
+    const controller = new ChartController(host, options);
+    const setSeries = vi.spyOn(controller.chart, 'setSeries');
+
+    options.series[0].name = 'Renamed';
+    controller.update(options);
+    expect(controller.chart.series[0].name).toBe('Renamed');
+    expect(setSeries).not.toHaveBeenCalled();
+    controller.destroy();
+  });
+
   it('cross-fades a new theme', () => {
     const host = mount();
     const controller = new ChartController(host, base({ theme: telegramLight }));
@@ -155,5 +189,25 @@ describe('vue wrapper', () => {
 
     app.unmount();
     expect(host.querySelector('canvas')).toBeNull();
+  });
+
+  it('follows options mutated in place, which is what its deep watch hands back', async () => {
+    const { createApp, h, nextTick, reactive } = await import('vue');
+    const { NanoChart } = await import('../src/vue.js');
+
+    const host = mount();
+    const options = reactive(base());
+    let chart: ChartController['chart'] | null = null;
+    const app = createApp({
+      render: () => h(NanoChart, { options, onReady: (c: ChartController['chart']) => { chart = c; } }),
+    });
+    app.mount(host);
+    expect(chart).not.toBeNull();
+
+    options.series = [{ id: 'a', type: 'line', name: 'A', data: [1, 2, 3, 4, 5] }];
+    await nextTick();
+    expect(chart!.series[0].data.length).toBe(5);
+
+    app.unmount();
   });
 });

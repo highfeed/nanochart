@@ -1,5 +1,32 @@
 import { Chart } from '../core/chart.js';
-import type { ChartOptions, SeriesOptions } from '../core/types.js';
+import type { ChartOptions, SeriesOptions, Theme } from '../core/types.js';
+
+/**
+ * The fields the diff reads, copied out of the caller's options object.
+ *
+ * Keeping the object itself looks equivalent and is not. A caller that edits it
+ * in place — which is what a Vue `deep` watch hands back, and ordinary usage
+ * there — would leave `previous` and `next` as the same object, and every
+ * check would compare a field with itself and conclude nothing had changed.
+ */
+interface Snapshot {
+  theme: Theme | undefined;
+  series: SeriesOptions[];
+  range: [number, number] | undefined;
+  height: number | undefined;
+}
+
+/**
+ * Shallow copies throughout: every array and object the caller still holds is
+ * fair game for an in-place edit. Nothing large is duplicated — `data` is
+ * compared by identity, so only the reference is carried across.
+ */
+const snapshot = (options: ChartOptions): Snapshot => ({
+  theme: options.theme,
+  series: options.series.map((series) => ({ ...series })),
+  range: options.range ? [options.range[0], options.range[1]] : undefined,
+  height: options.height,
+});
 
 /**
  * The part of a framework binding that is not framework-specific.
@@ -11,11 +38,11 @@ import type { ChartOptions, SeriesOptions } from '../core/types.js';
  */
 export class ChartController {
   readonly chart: Chart;
-  private previous: ChartOptions;
+  private previous: Snapshot;
 
   constructor(target: HTMLElement, options: ChartOptions) {
     this.chart = new Chart(target, options);
-    this.previous = options;
+    this.previous = snapshot(options);
   }
 
   /**
@@ -27,15 +54,13 @@ export class ChartController {
    */
   update(next: ChartOptions): void {
     const previous = this.previous;
-    this.previous = next;
+    this.previous = snapshot(next);
 
     if (next.theme && next.theme !== previous.theme) {
       this.chart.setTheme(next.theme);
     }
 
-    if (next.series !== previous.series) {
-      applySeries(this.chart, previous.series, next.series);
-    }
+    applySeries(this.chart, previous.series, next.series);
 
     const range = next.range;
     if (range && (!previous.range || range[0] !== previous.range[0] || range[1] !== previous.range[1])) {
@@ -68,6 +93,20 @@ function applySeries(chart: Chart, previous: readonly SeriesOptions[], next: rea
     }
   }
   for (let i = 0; i < next.length; i++) {
-    if (next[i] !== previous[i]) chart.updateSeries(next[i].id, next[i]);
+    if (!same(next[i], previous[i])) chart.updateSeries(next[i].id, next[i]);
   }
+}
+
+/**
+ * Field by field, because the snapshot is a copy and never the same object.
+ * `data` and `dash` are compared by identity, so a series that only changed
+ * colour still costs one string comparison rather than a pass over its samples.
+ */
+function same(a: SeriesOptions, b: SeriesOptions): boolean {
+  const keys = Object.keys(a) as (keyof SeriesOptions)[];
+  if (keys.length !== Object.keys(b).length) return false;
+  for (const key of keys) {
+    if (a[key] !== b[key]) return false;
+  }
+  return true;
 }

@@ -74,3 +74,21 @@ project was in before it had tests or a repository.
   after focus moved away. It no longer paints one at all: the canvas is a focus
   stop, and the browser's own `:focus-visible` indicator marks it, which a page
   can restyle like any other control's.
+- A colour in a modern CSS space — `oklch()`, `lab()`, `color()`, `color-mix()`
+  — overflowing the stack. Such a colour has no sRGB spelling, so the canvas
+  hands it back verbatim rather than as hex, and the parser fed it to itself
+  until the stack gave out. Anything the round trip cannot resolve is now
+  painted and read back off the pixel.
+- A `locale` whose digits are not Latin (`ar-EG`, `fa-IR`, `bn-BD`, `my-MM`) or
+  whose calendar is not Gregorian (`th-TH`) throwing `RangeError` in the middle
+  of a frame. The wall clock a tick anchor is built from is arithmetic rather
+  than something a reader sees, so it is now read in Latin digits on the
+  Gregorian calendar; labels keep the locale's own.
+- A gap in a candlestick series reading as a candle at zero, which pulled the
+  whole price axis down to meet it. The OHLC columns start out as gaps rather
+  than zeros, so a hole — or a plain `{ x, y }` sitting among candles — carries
+  no price.
+- Framework wrappers ignoring an options object that was edited in place, which
+  is exactly what the Vue binding's deep watch hands back: the diff held the
+  caller's object and compared each field against itself. It now keeps its own
+  snapshot of the fields it reads, and compares series field by field.

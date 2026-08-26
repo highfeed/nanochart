@@ -23,6 +23,9 @@ export interface SeriesData {
 
 const EMPTY = new Float64Array(0);
 
+/** A column that starts out as all gaps, rather than as all zeros. */
+const gapped = (length: number): Float64Array => new Float64Array(length).fill(Number.NaN);
+
 export const emptyData = (): SeriesData => ({
   length: 0,
   x: EMPTY,
@@ -79,12 +82,13 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
       x[i] = Number.NaN;
       y[i] = Number.NaN;
     } else if (isOhlc(raw)) {
-      ohlc ??= {
-        open: new Float64Array(length),
-        high: new Float64Array(length),
-        low: new Float64Array(length),
-        close: new Float64Array(length),
-      };
+      // Gaps, not zeros: the columns are allocated at the first OHLC sample and
+      // only the OHLC samples write to them, so every other slot — a hole, a
+      // plain `{ x, y }` among candles — has to read as "no candle here". A
+      // zero is a price: it draws a phantom candle on the baseline, and
+      // `candlestick.extent` scans the columns directly, so it drags the whole
+      // price axis down to meet it.
+      ohlc ??= { open: gapped(length), high: gapped(length), low: gapped(length), close: gapped(length) };
       positioned = true;
       x[i] = value(raw.x);
       ohlc.open[i] = value(raw.open);
