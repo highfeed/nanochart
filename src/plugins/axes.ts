@@ -1,8 +1,9 @@
 import { Animated } from '../core/animate.js';
+import type { Chart } from '../core/chart.js';
 import { withAlpha } from '../core/color.js';
-import { linearTickSet, timeFormatter, timeTicks } from '../core/scale.js';
+import { linearTickSet, logTicks, timeFormatter, timeTicks } from '../core/scale.js';
 import type { AxisId, DrawContext, Plugin } from '../core/types.js';
-import { compactFormatter } from '../core/utils.js';
+import { compactFormatter, formatLog } from '../core/utils.js';
 
 /** Cross-fades between the old and the new tick set when the step changes. */
 class TickFader {
@@ -64,6 +65,14 @@ export interface YAxisOptions {
    * of the plot, so every label stays on top of a filled area.
    */
   labelPosition?: 'above' | 'below' | 'inside';
+  /**
+   * `overlay` (default) draws labels on top of the plot, Telegram style.
+   * `outside` reserves a gutter for them and shrinks the plot, which is what a
+   * conventional chart looks like and what wide labels need.
+   */
+  placement?: 'overlay' | 'outside';
+  /** Gap between the gutter and the plot, in `outside` placement. */
+  gutter?: number;
   format?: (value: number) => string;
   fontSize?: number;
 }
@@ -71,11 +80,34 @@ export interface YAxisOptions {
 export function yAxis(options: YAxisOptions = {}): Plugin {
   const axis = options.axis ?? 'y';
   const align = options.align ?? (axis === 'y' ? 'left' : 'right');
+  const outside = options.placement === 'outside';
+  const gutter = options.gutter ?? 8;
+  const fontSize = options.fontSize ?? 11;
   const fader = new TickFader();
+  let reserved = 0;
 
   return {
     name: `nano:yAxis:${axis}`,
     animating: (_chart, now) => fader.active(now),
+
+    measure: outside
+      ? (chart, box) => {
+          // The gutter is as wide as the widest label the current domain can
+          // produce, so it neither clips nor leaves a slab of empty space.
+          const domain = chart.domain(axis);
+          const format = labelFormat(chart, axis, options, domain.step);
+          const font = chart.font(fontSize, 500);
+          let widest = 0;
+          for (const value of domain.ticks) {
+            const width = chart.renderer.measure(format(value, 0), font);
+            if (width > widest) widest = width;
+          }
+          reserved = widest > 0 ? widest + gutter : 0;
+          if (reserved === 0) return;
+          box.w -= reserved;
+          if (align === 'left') box.x += reserved;
+        }
+      : undefined,
 
     drawUnder(ctx) {
       const domain = ctx.chart.domain(axis);
@@ -105,27 +137,27 @@ export function yAxis(options: YAxisOptions = {}): Plugin {
 
       const scale = ctx.scaleFor(axis);
       const box = ctx.box;
-      const font = ctx.font(options.fontSize ?? 11, 500);
+      const font = ctx.font(fontSize, 500);
       const textColor = options.color ?? (options.tinted ? tint(ctx, axis) : ctx.color('textMuted'));
-      const custom = (axis === 'y' ? chart.yAxis : chart.y2Axis).format;
-      const base = options.format ?? custom ?? compactFormatter(domain.step);
-      const formatter = decorate((value, index) => base(value, index), options.prefix, options.suffix);
-      const x = align === 'left' ? box.x : box.x + box.w;
+      const formatter = labelFormat(chart, axis, options, domain.step);
+      const x = align === 'left' ? box.x - (outside ? gutter : 0) : box.x + box.w + (outside ? gutter : 0);
 
       const position = options.labelPosition ?? 'above';
-      const size = options.fontSize ?? 11;
-      const below = position !== 'above';
+      const size = fontSize;
+      // Outside the plot there is nothing to sit clear of, so labels centre on
+      // their grid line instead of perching above it.
+      const below = outside ? false : position !== 'above';
       fader.each(ctx.now, (ticks, alpha) => {
         if (alpha <= 0.01) return;
         for (const value of ticks) {
           const y = scale.map(value);
           if (y < box.y - 2 || y > box.y + box.h + 2) continue;
-          if (position === 'inside' && y + 5 + size > box.y + box.h) continue;
-          ctx.r.text(formatter(value, 0), x, below ? y + 5 : y - 6, {
+          if (!outside && position === 'inside' && y + 5 + size > box.y + box.h) continue;
+          ctx.r.text(formatter(value, 0), x, outside ? y : below ? y + 5 : y - 6, {
             font,
             color: withAlpha(textColor, alpha),
-            align,
-            baseline: below ? 'top' : 'bottom',
+            align: outside ? (align === 'left' ? 'right' : 'left') : align,
+            baseline: outside ? 'middle' : below ? 'top' : 'bottom',
           });
         }
       });
@@ -134,6 +166,19 @@ export function yAxis(options: YAxisOptions = {}): Plugin {
 }
 
 type TickFormat = (value: number, index: number) => string;
+
+/** The formatter a y axis will actually use, options and axis type applied. */
+function labelFormat(
+  chart: Chart,
+  axis: AxisId,
+  options: YAxisOptions,
+  step: number,
+): TickFormat {
+  const axisOptions = chart.axisOptions(axis);
+  const fallback = axisOptions.type === 'log' ? formatLog : compactFormatter(step);
+  const base = options.format ?? axisOptions.format ?? fallback;
+  return decorate((value, index) => base(value, index), options.prefix, options.suffix);
+}
 
 /** Wraps a formatter, keeping the minus sign in front: `-$500`, not `$-500`. */
 function decorate(format: TickFormat, prefix = '', suffix = ''): TickFormat {
@@ -149,6 +194,16 @@ function tint(ctx: DrawContext, axis: AxisId): string {
     if (series.axis === axis && series.visible) return ctx.colorOf(series);
   }
   return ctx.color('textMuted');
+}
+
+/** Whole slots inside the window, thinned so labels do not collide. */
+function categoryTicks(d0: number, d1: number, count: number): number[] {
+  const first = Math.max(0, Math.ceil(d0 - 1e-9));
+  const last = Math.floor(d1 + 1e-9);
+  const stride = Math.max(1, Math.ceil((last - first + 1) / Math.max(1, count)));
+  const out: number[] = [];
+  for (let i = first; i <= last; i += stride) out.push(i);
+  return out;
 }
 
 export interface XAxisOptions {
@@ -178,13 +233,28 @@ export function xAxis(options: XAxisOptions = {}): Plugin {
       const chart = ctx.chart;
       const box = ctx.box;
       const count = Math.max(2, Math.floor(box.w / spacing));
-      const isTime = chart.xAxis.type === 'time';
+      const type = chart.xAxis.type;
       const span = ctx.x.d1 - ctx.x.d0;
-      const linear = isTime ? null : linearTickSet(ctx.x.d0, ctx.x.d1, count);
-      const ticks = linear ? linear.ticks : timeTicks(ctx.x.d0, ctx.x.d1, count);
+
+      let ticks: number[];
+      let fallback: (value: number) => string;
+      if (type === 'time') {
+        ticks = timeTicks(ctx.x.d0, ctx.x.d1, count);
+        fallback = timeFormatter(span, count);
+      } else if (type === 'log') {
+        ticks = logTicks(ctx.x.d0, ctx.x.d1, count);
+        fallback = formatLog;
+      } else if (type === 'category') {
+        ticks = categoryTicks(ctx.x.d0, ctx.x.d1, count);
+        const labels = chart.xAxis.categories;
+        fallback = (value) => labels?.[Math.round(value)] ?? String(Math.round(value));
+      } else {
+        const linear = linearTickSet(ctx.x.d0, ctx.x.d1, count);
+        ticks = linear.ticks;
+        fallback = compactFormatter(linear.step);
+      }
       fader.update(ticks, ctx.now, chart.duration);
 
-      const fallback = linear ? compactFormatter(linear.step) : timeFormatter(span, count);
       const base: TickFormat = options.format ?? chart.xAxis.format ?? ((value) => fallback(value));
       const format = decorate(base, options.prefix, options.suffix);
       const font = ctx.font(options.fontSize ?? 11, 500);

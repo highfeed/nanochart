@@ -12,13 +12,24 @@ export { Renderer, type TextStyle } from './core/renderer.js';
 export { getSeriesRenderer, registerSeries } from './core/registry.js';
 export { Animated, easeInOutCubic, easeLinear, easeOutCubic, easeOutQuint, type Easing } from './core/animate.js';
 export { mixColorStrings, parseColor, rgbaToString, withAlpha, type RGBA } from './core/color.js';
-export { linearTicks, niceStep, scaleLinear, ticksFromStep, timeTicks, type Scale } from './core/scale.js';
+export {
+  linearTicks,
+  logTicks,
+  niceLogDomain,
+  niceStep,
+  scaleLinear,
+  scaleLog,
+  ticksFromStep,
+  timeTicks,
+  type Scale,
+} from './core/scale.js';
 export {
   clamp,
   formatCompact,
   formatDate,
   formatDay,
   formatGrouped,
+  formatLog,
   formatMonth,
   formatPercent,
   formatTime,

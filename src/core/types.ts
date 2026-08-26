@@ -100,8 +100,16 @@ export interface SeriesState {
   alpha: Animated;
 }
 
+export type AxisType = 'linear' | 'time' | 'log' | 'category';
+
 export interface AxisOptions {
-  type?: 'linear' | 'time';
+  /**
+   * `log` spans orders of magnitude; `category` puts one slot per sample and
+   * labels it from `categories`, which is what a bar chart usually wants.
+   */
+  type?: AxisType;
+  /** Labels for a `category` axis, indexed by sample position. */
+  categories?: readonly string[];
   /** Hard domain bounds; omit for auto. */
   min?: number;
   max?: number;

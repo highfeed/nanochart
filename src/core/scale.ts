@@ -11,6 +11,9 @@ export interface Scale {
   invert(pixel: number): number;
 }
 
+/** Smallest positive value a log domain will accept, so zero cannot reach it. */
+const LOG_FLOOR = 1e-12;
+
 export function scaleLinear(d0: number, d1: number, r0: number, r1: number): Scale {
   const span = d1 - d0 || 1;
   const k = (r1 - r0) / span;
@@ -22,6 +25,67 @@ export function scaleLinear(d0: number, d1: number, r0: number, r1: number): Sca
     map: (value) => r0 + (value - d0) * k,
     invert: (pixel) => d0 + (pixel - r0) / k,
   };
+}
+
+/**
+ * Log scale, for data spanning orders of magnitude.
+ *
+ * The domain is clamped away from zero rather than rejected: a log axis with a
+ * zero or negative bound is a configuration mistake, and refusing to draw is a
+ * worse answer than drawing from the smallest positive value.
+ */
+export function scaleLog(d0: number, d1: number, r0: number, r1: number): Scale {
+  const lo = Math.max(d0, LOG_FLOOR);
+  const hi = Math.max(d1, lo * 10);
+  const l0 = Math.log(lo);
+  const span = Math.log(hi) - l0 || 1;
+  const k = (r1 - r0) / span;
+  return {
+    d0: lo,
+    d1: hi,
+    r0,
+    r1,
+    map: (value) => r0 + (Math.log(Math.max(value, LOG_FLOOR)) - l0) * k,
+    invert: (pixel) => Math.exp(l0 + (pixel - r0) / k),
+  };
+}
+
+/** Widens a domain to whole decades. */
+export function niceLogDomain(min: number, max: number): { min: number; max: number } {
+  const lo = Math.max(min, LOG_FLOOR);
+  const hi = Math.max(max, lo * 10);
+  return {
+    min: 10 ** Math.floor(Math.log10(lo)),
+    max: 10 ** Math.ceil(Math.log10(hi)),
+  };
+}
+
+/**
+ * Decade ticks, thinned to fit `count`.
+ *
+ * A short span gets its 2s and 5s as well, because three labels across a whole
+ * axis reads as a broken chart rather than a sparse one.
+ */
+export function logTicks(min: number, max: number, count = 6): number[] {
+  const lo = Math.max(min, LOG_FLOOR);
+  const hi = Math.max(max, lo * 10);
+  const first = Math.floor(Math.log10(lo));
+  const last = Math.ceil(Math.log10(hi));
+  const decades = last - first;
+  const out: number[] = [];
+
+  if (decades <= 0) return [lo, hi];
+  const minors = decades * 3 <= count ? [1, 2, 5] : [1];
+  const stride = Math.max(1, Math.ceil(decades / Math.max(1, count)));
+
+  for (let e = first; e <= last; e += stride) {
+    const decade = 10 ** e;
+    for (const m of minors) {
+      const value = m * decade;
+      if (value >= lo - LOG_FLOOR && value <= hi * (1 + 1e-9)) out.push(value);
+    }
+  }
+  return out;
 }
 
 /** Rounded step that yields roughly `count` intervals across the span. */
