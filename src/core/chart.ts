@@ -69,6 +69,14 @@ export class Chart {
   stacks: StackMap = new Map();
   hoverIndex = -1;
   hoverSeriesId: string | null = null;
+  /**
+   * Series `hoverIndex` refers to.
+   *
+   * Not always the same series for the whole plot: an order book puts bids and
+   * asks on disjoint halves of the price axis, so the series under the pointer
+   * changes as it crosses the spread.
+   */
+  hoverReference: SeriesState | null = null;
   pointerX = -1;
   pointerY = -1;
   pointerInside = false;
@@ -437,7 +445,7 @@ export class Chart {
     return [i0, i1];
   }
 
-  /** Series used for shared-x hover; the longest visible cartesian one. */
+  /** Longest visible cartesian series; the default subject of a shared-x hover. */
   referenceSeries(): SeriesState | null {
     let best: SeriesState | null = null;
     for (const series of this.series) {
@@ -446,6 +454,34 @@ export class Chart {
       if (!best || series.data.length > best.data.length) best = series;
     }
     return best;
+  }
+
+  /**
+   * Closest sample to an x value, across every visible cartesian series.
+   *
+   * Picking one series for the whole plot only works when they share an x
+   * grid. Where they do not — an order book, two instruments with different
+   * histories — a pointer over one series would report the nearest point of
+   * another, pinned at the end of its range.
+   */
+  nearestSample(x: number): { series: SeriesState; index: number } | null {
+    let best: SeriesState | null = null;
+    let bestIndex = -1;
+    let bestDistance = Infinity;
+
+    for (const series of this.series) {
+      if (!series.visible || series.data.length === 0) continue;
+      if (getSeriesRenderer(series.type)?.cartesian === false) continue;
+      const index = nearestIndex(series.data, x);
+      const distance = Math.abs(series.data.x[index] - x);
+      // Strictly closer, so series sharing a grid keep the list order they had.
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = series;
+        bestIndex = index;
+      }
+    }
+    return best ? { series: best, index: bestIndex } : null;
   }
 
   private frame = (): void => {
@@ -810,15 +846,17 @@ export class Chart {
         return;
       }
     }
-    const reference = this.referenceSeries();
-    if (!reference) {
+    const nearest = this.nearestSample(this.xScale.invert(state.x));
+    if (!nearest) {
       this.setHover(-1, null);
       return;
     }
-    this.setHover(nearestIndex(reference.data, this.xScale.invert(state.x)), null);
+    this.hoverReference = nearest.series;
+    this.setHover(nearest.index, null);
   }
 
   private setHover(index: number, seriesId: string | null): void {
+    if (index < 0) this.hoverReference = null;
     if (this.hoverIndex === index && this.hoverSeriesId === seriesId) return;
     this.hoverIndex = index;
     this.hoverSeriesId = seriesId;
