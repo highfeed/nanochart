@@ -1,10 +1,15 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { contextOf, installCanvas, mount, setSize } from './helpers/dom.js';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { contextOf, installCanvas, mount, setSize, useClock } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import { telegramDark, telegramLight } from '../src/themes/telegram.js';
 import '../src/index.js';
 
 beforeAll(installCanvas);
+let clock: ReturnType<typeof useClock> | undefined;
+afterEach(() => {
+  clock?.restore();
+  clock = undefined;
+});
 
 const base = (over: Record<string, unknown> = {}) => ({
   animation: false as const,
@@ -57,7 +62,7 @@ describe('visibility', () => {
 
   // toggle() writes to series.visible but never to series.options.visible, so
   // the next setSeries() rebuild reads the stale option back.
-  it.fails('keeps a toggled state across an unrelated updateSeries', () => {
+  it('keeps a toggled state across an unrelated updateSeries', () => {
     const host = mount();
     const chart = new Chart(host, base({
       series: [
@@ -113,7 +118,7 @@ describe('sizing', () => {
 
   // The canvas height is written once in the constructor, and resize() then
   // reads that same value back off the canvas instead of the container.
-  it.fails('follows the container height when no height was given', () => {
+  it('follows the container height when no height was given', () => {
     const host = mount(600, 200);
     const chart = new Chart(host, base({ height: undefined }));
     setSize(host, 600, 400);
@@ -145,7 +150,7 @@ describe('domain', () => {
 
   // A one-point series has no x span, so xExtent falls back to [0, 1] and the
   // point is scaled off screen.
-  it.fails('places a single-point series inside the x extent', () => {
+  it('places a single-point series inside the x extent', () => {
     const host = mount();
     const chart = new Chart(host, base({ series: [{ id: 'a', type: 'line', data: [[5, 42]] }] }));
     chart.render();
@@ -172,9 +177,48 @@ describe('themes', () => {
 
 describe('unknown series type', () => {
   // Silently drawing nothing is the worst possible failure mode for a typo.
-  it.fails('does not silently ignore a type nobody registered', () => {
+  it('does not silently ignore a type nobody registered', () => {
     const host = mount();
     expect(() => new Chart(host, base({ series: [{ id: 'a', type: 'nope', data: [1, 2] }] })).render())
       .toThrow(/nope/);
+  });
+});
+
+describe('destroy on a borrowed canvas', () => {
+  it('restores the attributes it set', () => {
+    const host = mount();
+    const canvas = document.createElement('canvas');
+    host.appendChild(canvas);
+    const chart = new Chart(canvas, base({ ariaLabel: 'Revenue' }));
+    expect(canvas.getAttribute('role')).toBe('img');
+    expect(canvas.getAttribute('aria-label')).toBe('Revenue');
+
+    chart.destroy();
+    expect(canvas.getAttribute('role')).toBeNull();
+    expect(canvas.getAttribute('aria-label')).toBeNull();
+    expect(canvas.style.touchAction).toBe('');
+    expect(host.contains(canvas)).toBe(true);
+  });
+});
+
+describe('theme cross-fade', () => {
+  it('mixes colour keys the built-in themes do not declare', () => {
+    clock = useClock();
+    const host = mount();
+    const brandLight = { ...telegramLight, name: 'brand', accent: '#000000' } as never;
+    const brandDark = { ...telegramDark, name: 'brand-dark', accent: '#ffffff' } as never;
+    const chart = new Chart(host, base({ theme: brandLight, animation: { duration: 200 } }));
+
+    chart.setTheme(brandDark);
+    // Halfway through, so the second switch has to snapshot a running fade.
+    clock.advance(140);
+    chart.setTheme(brandLight);
+
+    const snapshot = (chart as never as { themeState: { prev: Record<string, string> } }).themeState.prev;
+    // Neither endpoint: the custom key was interpolated like any built-in one.
+    expect(snapshot.accent).toMatch(/^rgba?\(/);
+    expect(snapshot.accent).not.toBe('#000000');
+    expect(snapshot.accent).not.toBe('#ffffff');
+    chart.destroy();
   });
 });

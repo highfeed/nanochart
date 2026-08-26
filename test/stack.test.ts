@@ -44,7 +44,7 @@ describe('buildStacks', () => {
   });
 
   // `totals[i] > 0` collapses any column whose signed sum is zero or negative.
-  it.fails('normalizes a column that contains negative values', () => {
+  it('normalizes a column that contains negative values', () => {
     const stacks = layout([
       series('a', [10], { normalize: true }),
       series('b', [-10], { normalize: true }),

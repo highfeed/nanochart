@@ -82,6 +82,8 @@ export class Chart {
   private readonly ownsCanvas: boolean;
   private readonly resizeObserver: ResizeObserver | null;
   private readonly themeState: { prev: Theme; next: Theme; mix: Animated };
+  /** Set only when the caller pinned a height; otherwise the container rules. */
+  private readonly explicitHeight: number | undefined;
   private lastContext: DrawContext | null = null;
   private frameHandle = 0;
   private needsLayout = true;
@@ -127,8 +129,8 @@ export class Chart {
     this.plugins = [...(options.plugins ?? [])];
     this.setSeries(options.series, false);
 
-    const height = options.height ?? (this.container.clientHeight || DEFAULT_HEIGHT);
-    this.canvas.style.height = `${height}px`;
+    this.explicitHeight = options.height;
+    this.canvas.style.height = `${this.measuredHeight()}px`;
 
     for (const plugin of this.plugins) plugin.init?.(this);
 
@@ -198,7 +200,11 @@ export class Chart {
     const previous = new Map(this.series.map((s) => [s.id, s]));
     this.series = list.map((options, index) => {
       const old = previous.get(options.id);
-      const visible = options.visible ?? old?.visible ?? true;
+      // Runtime visibility wins over the original option, or every toggle
+      // would be undone by the next rebuild. A caller that means to override
+      // it says so by passing a `visible` that differs from the old options.
+      const stated = options.visible !== undefined && options.visible !== old?.options.visible;
+      const visible = stated ? (options.visible as boolean) : old?.visible ?? options.visible ?? true;
       return {
         id: options.id,
         type: options.type,
@@ -213,6 +219,13 @@ export class Chart {
     });
     for (const s of this.series) {
       if (!animate) s.alpha.jump(s.visible ? 1 : 0);
+      if (!getSeriesRenderer(s.type)) {
+        throw new Error(
+          `nanochart: no renderer for series type "${s.type}". ` +
+            'Register one with registerSeries(), or import from the package entry ' +
+            'so the built-in types register themselves.',
+        );
+      }
     }
     this.updateExtent();
     this.needsLayout = true;
@@ -280,12 +293,21 @@ export class Chart {
   resize(): void {
     if (this.destroyed) return;
     const width = this.container.clientWidth || this.canvas.clientWidth;
-    const height = this.canvas.clientHeight || DEFAULT_HEIGHT;
+    const height = this.measuredHeight();
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
     if (this.renderer.resize(width, height, dpr)) {
       this.needsLayout = true;
       this.render();
     }
+  }
+
+  /**
+   * Reading the height back off the canvas would only return what was written
+   * there once, so an unpinned chart could never follow its container.
+   */
+  private measuredHeight(): number {
+    if (this.explicitHeight !== undefined) return this.explicitHeight;
+    return this.container.clientHeight || this.canvas.clientHeight || DEFAULT_HEIGHT;
   }
 
   invalidate(): void {
@@ -311,7 +333,16 @@ export class Chart {
     this.detachEvents();
     for (const plugin of this.plugins) plugin.destroy?.(this);
     this.listeners.clear();
-    if (this.ownsCanvas) this.canvas.remove();
+    if (this.ownsCanvas) {
+      this.canvas.remove();
+      return;
+    }
+    // A canvas we were handed goes back the way it came.
+    this.renderer.ctx.clearRect(0, 0, this.renderer.width, this.renderer.height);
+    this.canvas.removeAttribute('role');
+    this.canvas.removeAttribute('aria-label');
+    this.canvas.style.touchAction = '';
+    this.canvas.style.cursor = '';
   }
 
   createContext(now: number, box: Box, x: Scale, yScales: Record<AxisId, Scale>, preview: boolean): DrawContext {
@@ -426,8 +457,15 @@ export class Chart {
       if (data.x[0] < min) min = data.x[0];
       if (data.x[data.length - 1] > max) max = data.x[data.length - 1];
     }
-    if (!Number.isFinite(min) || max <= min) {
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
       this.xExtent = [0, 1];
+      return;
+    }
+    if (max <= min) {
+      // One sample, or many sharing an x. Pad around it rather than replacing
+      // it, or the point would be scaled off screen.
+      const pad = Math.abs(min) > 0 ? Math.abs(min) * 0.05 : 0.5;
+      this.xExtent = [min - pad, min + pad];
       return;
     }
     // Headroom keeps edge bars and dots from being cut in half.
@@ -688,28 +726,20 @@ function resolveSeriesColor(theme: Theme, series: SeriesState): string {
 }
 
 function snapshotTheme(prev: Theme, next: Theme, t: number): Theme {
-  const palette = next.palette.map((color, i) =>
+  // Built by walking the keys rather than naming them, so a theme carrying its
+  // own colours cross-fades too, and adding a key to `Theme` cannot be
+  // forgotten here.
+  const out: Record<string, unknown> = { ...next };
+  for (const key of Object.keys(next) as (keyof Theme)[]) {
+    const a = prev[key];
+    const b = next[key];
+    if (typeof b === 'string' && typeof a === 'string' && key !== 'name' && key !== 'font') {
+      out[key] = mixColorStrings(a, b, t);
+    }
+  }
+  out.dark = t >= 0.5 ? next.dark : prev.dark;
+  out.palette = next.palette.map((color, i) =>
     mixColorStrings(prev.palette[i % prev.palette.length], color, t),
   );
-  return {
-    name: next.name,
-    dark: t >= 0.5 ? next.dark : prev.dark,
-    font: next.font,
-    background: mixColorStrings(prev.background, next.background, t),
-    text: mixColorStrings(prev.text, next.text, t),
-    textMuted: mixColorStrings(prev.textMuted, next.textMuted, t),
-    grid: mixColorStrings(prev.grid, next.grid, t),
-    crosshair: mixColorStrings(prev.crosshair, next.crosshair, t),
-    positive: mixColorStrings(prev.positive, next.positive, t),
-    negative: mixColorStrings(prev.negative, next.negative, t),
-    tooltipBackground: mixColorStrings(prev.tooltipBackground, next.tooltipBackground, t),
-    tooltipText: mixColorStrings(prev.tooltipText, next.tooltipText, t),
-    tooltipMuted: mixColorStrings(prev.tooltipMuted, next.tooltipMuted, t),
-    tooltipBorder: mixColorStrings(prev.tooltipBorder, next.tooltipBorder, t),
-    tooltipShadow: mixColorStrings(prev.tooltipShadow, next.tooltipShadow, t),
-    overlay: mixColorStrings(prev.overlay, next.overlay, t),
-    handle: mixColorStrings(prev.handle, next.handle, t),
-    handleGrip: mixColorStrings(prev.handleGrip, next.handleGrip, t),
-    palette,
-  };
+  return out as unknown as Theme;
 }

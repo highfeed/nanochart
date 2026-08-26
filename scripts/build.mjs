@@ -3,13 +3,13 @@ import { readFileSync } from 'node:fs';
 import { build } from 'esbuild';
 
 /**
- * gzip budget for the ESM bundle, in bytes. The README quotes this number.
+ * gzip ceiling for the ESM bundle, in bytes.
  *
- * Raised from 14 kB when the columnar data layer landed: min/max decimation
- * and gap handling cost about 1.2 kB, and a chart that draws the data it was
- * given is worth more than the kilobyte.
+ * This is a ratchet, not a target: it fails the build when the bundle grows
+ * without anyone noticing. Raise it deliberately, and update the number the
+ * readme and the badge quote in the same commit.
  */
-const SIZE_LIMIT = 15 * 1024;
+const SIZE_LIMIT = 16 * 1024;
 
 const targets = [
   { format: 'esm', outfile: 'dist/nanochart.js' },

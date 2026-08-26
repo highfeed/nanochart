@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
-[![gzip](https://img.shields.io/badge/gzip-14.7%20kB-brightgreen.svg)](#performance-notes)
+[![gzip](https://img.shields.io/badge/gzip-15.5%20kB-brightgreen.svg)](#performance-notes)
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **14.7 kB gzip** for everything: 6 series types, axes, legend, tooltip and a range scrubber
+- **15.5 kB gzip** for everything: 6 series types, axes, legend, tooltip and a range scrubber
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
 - **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching
 - **Plugin core**: axes, legend, tooltip and scrubber are plugins, and so is anything you add
@@ -61,7 +61,8 @@ the fill splits, and the point drops out of the tooltip and the axis domain.
 | `pie` | `innerRadius` | One series per slice, so the legend toggles slices |
 
 Every series takes `color`, `colorDark` (used while a dark theme is active), `axis`
-(`'y'` or `'y2'`) and `visible`.
+(`'y'` or `'y2'`) and `visible`. Colors accept hex, `rgb()`, `hsl()` and the basic
+CSS keywords everywhere; anything more exotic is resolved by the browser.
 
 Negative values in a stack grow downwards from zero, so a pair of series makes a
 diverging bar chart:
@@ -129,8 +130,8 @@ when an object is more convenient than the columns.
 ## Themes
 
 `telegramLight` and `telegramDark` ship with the library; `createTheme(base, overrides)`
-derives new ones. `chart.setTheme(theme)` cross-fades every color, including the palette,
-instead of snapping.
+derives new ones. `chart.setTheme(theme)` cross-fades every color, including the palette
+and any extra color keys your own theme adds, instead of snapping.
 
 ```js
 chart.setTheme(dark ? telegramDark : telegramLight);
