@@ -65,6 +65,41 @@ describe('gaps', () => {
     expect(() => normalizeData([[0, 1], null, [2, 3]])).not.toThrow();
   });
 
+  it('keeps the index as the position in a flat array', () => {
+    // Nothing in `[1, null, 3]` carries an x, so the slot's index is its
+    // position and the gap belongs at 1.
+    const data = normalizeData([1, null, 3]);
+    expect([...data.x]).toEqual([0, 1, 2]);
+  });
+
+  it('gives a bare null no position among samples that carry one', () => {
+    // The index is not a timestamp. Taking it put the gap at the epoch, which
+    // stretched a 72-hour chart across half a century.
+    const hour = 3_600_000;
+    const t = Date.UTC(2026, 7, 26);
+    const data = normalizeData([[t, 5], null, [t + 2 * hour, 7]]);
+    expect(Number.isNaN(data.x[1])).toBe(true);
+    expect(Number.isNaN(data.y[1])).toBe(true);
+    expect(data.gaps).toBe(true);
+    // The gap stays where it was put, so it still breaks the line between the
+    // two samples rather than being sorted to one end.
+    expect(data.x[0]).toBe(t);
+    expect(data.x[2]).toBe(t + 2 * hour);
+  });
+
+  it('does not let an unpositioned gap reorder the series', () => {
+    const data = normalizeData([[10, 1], null, [20, 2], [30, 3]]);
+    expect([...data.y].map((v) => (Number.isNaN(v) ? 'gap' : v))).toEqual([1, 'gap', 2, 3]);
+  });
+
+  it('sends unpositioned gaps to the end when the data has to be sorted', () => {
+    // Unsorted input with position-less holes cannot have both; the ordering
+    // wins, and the choice is at least deterministic.
+    const data = normalizeData([[30, 3], null, [10, 1]]);
+    expect([...data.x.slice(0, 2)]).toEqual([10, 30]);
+    expect(Number.isNaN(data.x[2])).toBe(true);
+  });
+
   it('reports no gaps for clean data', () => {
     expect(normalizeData([1, 2, 3]).gaps).toBe(false);
   });

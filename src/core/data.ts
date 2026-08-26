@@ -53,6 +53,11 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
   let ohlc: { open: Float64Array; high: Float64Array; low: Float64Array; close: Float64Array } | null = null;
   let gaps = false;
   let sorted = true;
+  /** True once a sample has carried an x of its own. */
+  let positioned = false;
+  let holed = false;
+  /** Last x that had a position, so holes cannot look out of order. */
+  let previous = -Infinity;
 
   for (let i = 0; i < length; i++) {
     const raw = input[i] as unknown;
@@ -61,11 +66,17 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
       x[i] = i;
       y[i] = value(raw);
     } else if (Array.isArray(raw)) {
+      positioned = true;
       x[i] = value(raw[0]);
       y[i] = value(raw[1]);
     } else if (raw === null || raw === undefined) {
-      // A bare hole in a flat array: keep the slot, mark it missing.
-      x[i] = i;
+      // A bare hole has no position of its own. `[[t1, 5], null, [t3, 7]]`
+      // asks for a break between two timestamps, not for a sample at x = 1:
+      // reading the index as an x put the gap at the epoch and stretched a
+      // time axis across every year since. In a flat array the index *is* the
+      // position, and those are filled in below.
+      holed = true;
+      x[i] = Number.NaN;
       y[i] = Number.NaN;
     } else if (isOhlc(raw)) {
       ohlc ??= {
@@ -74,6 +85,7 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
         low: new Float64Array(length),
         close: new Float64Array(length),
       };
+      positioned = true;
       x[i] = value(raw.x);
       ohlc.open[i] = value(raw.open);
       ohlc.high[i] = value(raw.high);
@@ -82,13 +94,22 @@ export function normalizeData(input: SeriesInput | null | undefined): SeriesData
       y[i] = value((raw as Point).y ?? raw.close);
     } else {
       const point = raw as Point;
+      positioned = true;
       x[i] = value(point.x);
       y[i] = value(point.y);
     }
 
     if (Number.isNaN(y[i])) gaps = true;
-    if (i > 0 && x[i] < x[i - 1]) sorted = false;
+    // Ordering is a question about positions, so holes sit it out.
+    if (!Number.isNaN(x[i])) {
+      if (x[i] < previous) sorted = false;
+      previous = x[i];
+    }
   }
+
+  // Nothing carried an x, so the index is the position after all — including
+  // for the holes, which is what a gap in a flat array means.
+  if (holed && !positioned) for (let i = 0; i < length; i++) x[i] = i;
 
   const data: SeriesData = {
     length,
@@ -108,7 +129,16 @@ function sortByX(data: SeriesData): SeriesData {
   const order = new Uint32Array(data.length);
   for (let i = 0; i < data.length; i++) order[i] = i;
   const x = data.x;
-  order.sort((a, b) => x[a] - x[b]);
+  // Unpositioned samples have no place in an ordering, and a NaN comparator
+  // result leaves the sort implementation-defined. They go to the end, where
+  // they still read as gaps.
+  order.sort((a, b) => {
+    const ax = x[a];
+    const bx = x[b];
+    if (Number.isNaN(ax)) return Number.isNaN(bx) ? a - b : 1;
+    if (Number.isNaN(bx)) return -1;
+    return ax - bx;
+  });
 
   const take = (column: Float64Array | null): Float64Array | null => {
     if (!column) return null;

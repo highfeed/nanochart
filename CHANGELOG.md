@@ -47,6 +47,11 @@ project was in before it had tests or a repository.
 - `formatGrouped` producing wrong digits past 1e21.
 - Unregistered series types drawing nothing instead of raising.
 - `destroy()` leaving attributes, styles and pixels on a borrowed canvas.
+- A bare `null` among `[x, y]` pairs or `{ x, y }` objects taking its index as
+  an x, which placed the gap at the epoch on a time axis and stretched the
+  domain across every year in between. Such a sample now has no position: it
+  breaks the line where it stands and stays out of the x extent. A `null` in a
+  flat array still belongs at its index, which is a position there.
 - A hover surviving `setSeries` and drawing samples from the discarded series;
   it now follows the series by id, or ends when that series is gone.
 - `hover` events swallowed when the pointer moved between two series that
