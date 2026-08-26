@@ -17,7 +17,6 @@ export {
   linearTicks,
   logTicks,
   niceLogDomain,
-  niceStep,
   scaleLinear,
   scaleLog,
   ticksFromStep,

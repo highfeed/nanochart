@@ -41,10 +41,6 @@
     "./svelte": {
       "types": "./dist/svelte.d.ts",
       "default": "./dist/svelte.js"
-    },
-    "./*": {
-      "types": "./dist/*.d.ts",
-      "default": "./dist/*.js"
     }
   },
   "files": [

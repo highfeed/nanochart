@@ -20,7 +20,8 @@ npm install nanochart.js
 ```
 
 > The npm package is `nanochart.js` — the bare `nanochart` name was taken by an
-> unrelated placeholder. Everything else, including the import name, is unchanged.
+> unrelated placeholder. That is the specifier to import from; the exports
+> themselves are unchanged.
 
 Or drop the global build into a page:
 
@@ -31,7 +32,7 @@ Or drop the global build into a page:
 ## Quick start
 
 ```js
-import { Chart, legend, rangeSelector, telegramLight, tooltip, xAxis, yAxis } from 'nanochart';
+import { Chart, legend, rangeSelector, telegramLight, tooltip, xAxis, yAxis } from 'nanochart.js';
 
 const chart = new Chart('#followers', {
   theme: telegramLight,
