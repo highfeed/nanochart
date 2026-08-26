@@ -18,6 +18,8 @@ project was in before it had tests or a repository.
 - `yAxis({ placement: 'outside' })` — a gutter sized to the widest label.
 - Legend `position`, `orientation`, `align` and `filter`.
 - `chart.setHeight()`, `chart.minSpan`, `chart.formats`.
+- `createFormats(locale, timeZone)` — the same formatters a chart builds, for
+  `title` and `format` callbacks that are written before the chart exists.
 - Gaps: `null`, `undefined` and non-finite values break lines, split area fills
   and drop out of tooltips and axis domains.
 

@@ -30,7 +30,6 @@ function split(times, values) {
 const h72 = hours(72);
 const h48 = hours(48);
 const d30 = days(30);
-const d90 = days(90);
 const d120 = days(120);
 const d180 = days(180);
 const m24 = months(24);
@@ -94,16 +93,9 @@ const pnl = split(
   ),
 );
 
-const flows = walk({ seed: 52, count: 90, start: 460000, drift: 3200, noise: 180000, swing: 0.2 });
-
 export const money = {
   profit: pnl.up,
   loss: pnl.down,
-  deposits: zip(d90, flows),
-  withdrawals: zip(
-    d90,
-    walk({ seed: 53, count: 90, start: 320000, drift: 2100, noise: 150000, swing: 0.26 }).map((v) => -v),
-  ),
   fees: {
     spot: zip(d120, walk({ seed: 54, count: 120, start: 42000, drift: 180, noise: 9000, swing: 0.18 })),
     futures: zip(d120, walk({ seed: 55, count: 120, start: 68000, drift: 420, noise: 14000, swing: 0.22 })),
@@ -123,8 +115,6 @@ export const users = {
   dau: zip(d120, walk({ seed: 71, count: 120, start: 38000, drift: 190, noise: 5200, swing: 0.12 })),
   wau: zip(d120, walk({ seed: 72, count: 120, start: 129000, drift: 520, noise: 9800, swing: 0.06 })),
   mau: zip(d120, walk({ seed: 73, count: 120, start: 386000, drift: 1240, noise: 16000, swing: 0.03 })),
-  signups: zip(d120, walk({ seed: 74, count: 120, start: 2400, drift: 14, noise: 900, swing: 0.24 })),
-  kycRate: zip(d120, walk({ seed: 75, count: 120, start: 62, drift: 0.06, noise: 9, swing: 0.05, min: 20, decimals: 1 })),
   retention: {
     d1: zip(m24, walk({ seed: 76, count: 24, start: 54, drift: 0.5, noise: 5, swing: 0.05, period: 12, decimals: 1 })),
     d7: zip(m24, walk({ seed: 77, count: 24, start: 34, drift: 0.34, noise: 4, swing: 0.06, period: 12, decimals: 1 })),
@@ -165,6 +155,4 @@ export const infra = {
   p95: zip(h72, walk({ seed: 82, count: 72, start: 86, noise: 26, swing: 0.22, period: 24, min: 20, decimals: 1 })),
   p99: zip(h72, walk({ seed: 83, count: 72, start: 210, noise: 90, swing: 0.3, period: 24, min: 40, decimals: 1 })),
   errorRate: zip(h72, walk({ seed: 84, count: 72, start: 0.24, noise: 0.22, swing: 0.4, period: 24, min: 0.01, decimals: 3 })),
-  rps: zip(h72, walk({ seed: 85, count: 72, start: 12400, drift: 40, noise: 2600, swing: 0.34, period: 24 })),
-  rejected: zip(h72, walk({ seed: 86, count: 72, start: 180, noise: 160, swing: 0.5, period: 24, min: 0 })),
 };
