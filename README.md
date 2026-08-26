@@ -183,6 +183,39 @@ following, <kbd>Home</kbd> and <kbd>End</kbd> jump to the ends, and
 <kbd>Esc</kbd> clears. Long series are capped at `maxRows` with the total noted
 in the caption.
 
+## Framework wrappers
+
+Thin bindings over the same core, in their own entry points so the plain
+library is untouched. `react` and `vue` are optional peers.
+
+```jsx
+import { NanoChart } from 'nanochart.js/react';
+
+<NanoChart series={series} theme={theme} onChart={setChart} />
+```
+
+```vue
+<script setup>
+import { NanoChart } from 'nanochart.js/vue';
+</script>
+
+<template><NanoChart :options="options" @ready="onReady" /></template>
+```
+
+```svelte
+<script>
+  import { nanochart } from 'nanochart.js/svelte';
+</script>
+
+<div use:nanochart={options} />
+```
+
+All three share `ChartController`, which works out the narrowest update for
+whatever changed: a new theme cross-fades, a changed series is patched rather
+than replacing the list, and identical options do nothing at all. A wrapper is
+handed a whole options object on every render, so treating that as "replace
+everything" would restart every animation on an unrelated prop change.
+
 ## Themes
 
 `telegramLight` and `telegramDark` ship with the library; `createTheme(base, overrides)`
@@ -205,6 +238,7 @@ chart.updateSeries(id, patch)           // patch one series, in place
 chart.toggle(id, visible?)              // show or hide with animation
 chart.setRange(from, to, animate?)      // visible window, 0..1 of the full extent
 chart.range()                           // current window
+chart.setHeight(height?)                // pin the height, or omit to follow the container
 chart.resize()                          // usually handled by ResizeObserver
 chart.render()                          // force a synchronous frame
 chart.destroy()
