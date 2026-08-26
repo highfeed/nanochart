@@ -19,8 +19,8 @@
           <p class="hero__eyebrow"><a href="index.html">nanochart</a> / examples</p>
           <h1 class="hero__title">Exchange dashboard</h1>
           <p class="hero__subtitle">
-            27 charts on one page: hourly, daily, monthly and yearly, from candles and order book
-            depth to retention and latency percentiles.
+            24 charts on one page: a live tape, then hourly, daily, monthly and yearly, from
+            candles and order book depth to latency percentiles.
           </p>
         </div>
         <button id="theme-toggle" class="switch" type="button" aria-pressed="false">
@@ -34,6 +34,7 @@
         </button>
       </div>
       <nav class="nav">
+        <a class="nav__link" href="#live">Live</a>
         <a class="nav__link" href="#market">Market</a>
         <a class="nav__link" href="#trading">Trading</a>
         <a class="nav__link" href="#money">Money</a>
@@ -66,6 +67,31 @@
         </article>
       </div>
 
+      <section class="section" id="live">
+        <header class="section__head">
+          <h2 class="section__title">Live</h2>
+          <p class="section__meta">One sample per second, streaming</p>
+        </header>
+        <div class="grid">
+          <section class="card card--wide">
+            <header class="card__head">
+              <h3 class="card__title">BTC/USDT tape</h3>
+              <p class="card__hint">A trade a second, through <code>updateSeries</code></p>
+            </header>
+            <div class="readout" id="live-readout">
+              <span class="readout__dot" aria-hidden="true"></span>
+              <span class="readout__price" id="live-price">&mdash;</span>
+              <span class="readout__delta" id="live-delta"></span>
+              <span class="readout__stamp" id="live-stamp">last 3 minutes</span>
+              <button class="readout__pause" id="live-pause" type="button" aria-pressed="false">
+                Pause
+              </button>
+            </div>
+            <div class="chart" id="chart-live"></div>
+          </section>
+        </div>
+      </section>
+
       <section class="section" id="market">
         <header class="section__head">
           <h2 class="section__title">Market</h2>
@@ -75,7 +101,7 @@
           <section class="card card--wide">
             <header class="card__head">
               <h3 class="card__title">BTC/USDT price</h3>
-              <p class="card__hint">Smooth line, scrubber, wheel zoom, keyboard</p>
+              <p class="card__hint">Smooth line, ctrl+wheel zoom, keyboard, window shared with volume</p>
             </header>
             <div class="chart" id="chart-price-24h"></div>
           </section>
@@ -83,7 +109,7 @@
           <section class="card">
             <header class="card__head">
               <h3 class="card__title">Volume per hour</h3>
-              <p class="card__hint">Bars</p>
+              <p class="card__hint">Bars, on the window the price chart is showing</p>
             </header>
             <div class="chart" id="chart-volume-hourly"></div>
           </section>
@@ -179,7 +205,7 @@
           <section class="card">
             <header class="card__head">
               <h3 class="card__title">Monthly revenue &amp; margin</h3>
-              <p class="card__hint">Bars plus a line on the right axis</p>
+              <p class="card__hint">Bars plus a line and a target on the right axis</p>
             </header>
             <div class="chart" id="chart-monthly-revenue"></div>
           </section>
@@ -251,7 +277,7 @@
           <section class="card">
             <header class="card__head">
               <h3 class="card__title">Error rate</h3>
-              <p class="card__hint">Gap where collection was down</p>
+              <p class="card__hint">Gap where collection was down, plus a custom plugin</p>
             </header>
             <div class="chart" id="chart-errors"></div>
           </section>

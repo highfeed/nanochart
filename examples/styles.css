@@ -208,19 +208,23 @@ body {
   font-weight: 600;
 }
 
-.kpi__delta--up {
+.kpi__delta--up,
+.readout__delta--up {
   color: #2fa84f;
 }
 
-.kpi__delta--down {
+.kpi__delta--down,
+.readout__delta--down {
   color: #e2483d;
 }
 
-[data-theme='dark'] .kpi__delta--up {
+[data-theme='dark'] .kpi__delta--up,
+[data-theme='dark'] .readout__delta--up {
   color: #5fd36f;
 }
 
-[data-theme='dark'] .kpi__delta--down {
+[data-theme='dark'] .kpi__delta--down,
+[data-theme='dark'] .readout__delta--down {
   color: #ff5f57;
 }
 
@@ -290,6 +294,85 @@ body {
   color: var(--muted);
   font-size: 13px;
   transition: color var(--duration) ease;
+}
+
+.card__hint code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.readout {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 2px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout__dot {
+  width: 8px;
+  height: 8px;
+  align-self: center;
+  border-radius: 50%;
+  background: #2fa84f;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.readout--paused .readout__dot {
+  animation: none;
+  background: var(--muted);
+}
+
+.readout__price {
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.readout__delta {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.readout__stamp {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+  transition: color var(--duration) ease;
+}
+
+.readout__pause {
+  padding: 4px 12px;
+  border: 1px solid var(--switch-border);
+  border-radius: 999px;
+  background: var(--switch-bg);
+  color: var(--title);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color var(--duration) ease, color var(--duration) ease,
+    border-color var(--duration) ease;
+}
+
+.readout__pause:hover {
+  color: var(--accent);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .readout__dot {
+    animation: none;
+  }
 }
 
 .chart {
