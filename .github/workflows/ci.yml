@@ -28,3 +28,25 @@ jobs:
       # The examples are the only end-to-end use of the public API, and the
       # demo site is built from them.
       - run: node scripts/check-examples.mjs
+
+  # `engines` claims Node 18, and `actions/setup-node` with '20' installs the
+  # newest 20.x, so nothing above has been testing that claim — which is how a
+  # `import.meta.dirname` (Node 20.11) reached a script the package says runs
+  # on 18.
+  #
+  # The suite itself cannot run here: happy-dom requires Node 20, so the DOM
+  # harness and the example checker are out of reach on the floor. What is
+  # left is still the part that broke — the package builds with the toolchain,
+  # its scripts run, and the built entry imports.
+  floor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: node scripts/site.mjs
+      - run: node -e "import('./dist/nanochart.js').then(m => { if (typeof m.Chart !== 'function') { throw new Error('no Chart export'); } })"
