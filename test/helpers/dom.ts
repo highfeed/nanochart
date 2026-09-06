@@ -114,3 +114,21 @@ export function wheelEvent(x: number, y: number, deltaY: number, init: WheelEven
   }
   return event;
 }
+
+/**
+ * Gives a canvas a layout box, so pointer events can be mapped through it.
+ *
+ * happy-dom reports an empty rect, and the chart reads `clientX`/`clientY`
+ * against it: without this every pointer lands outside the canvas.
+ */
+export function layout(canvas: HTMLCanvasElement, width = 600, height = 300): void {
+  canvas.getBoundingClientRect = () =>
+    ({ x: 0, y: 0, left: 0, top: 0, width, height, right: width, bottom: height, toJSON() {} }) as DOMRect;
+}
+
+/** Dispatches a pointer event on the canvas, the way a browser delivers one. */
+export function pointer(canvas: HTMLCanvasElement, type: string, x: number, y: number, init: PointerEventInit = {}): void {
+  canvas.dispatchEvent(
+    new PointerEvent(type, { clientX: x, clientY: y, pointerId: 1, bubbles: true, cancelable: true, ...init }),
+  );
+}

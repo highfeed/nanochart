@@ -1,5 +1,40 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- A container's padding no longer counts as room for an unpinned chart: the
+  canvas takes the container's content height, which is the space it can
+  occupy.
+
+### Fixed
+
+- The framework wrappers building a chart with no series types registered.
+  `nanochart.js/react`, `/vue` and `/svelte` load the shared controller and
+  nothing else, and the built-in types registered themselves only from the
+  package entry, so a page that imported nothing but a wrapper threw "no
+  renderer for series type" on its first series. The controller loads the
+  entry now, and a test imports each wrapper into an otherwise empty module
+  graph.
+- An unpinned chart growing without end in a container with no height of its
+  own. The canvas sits inside the container it measures, so a container sized
+  by its content — padding, a caption beside the canvas — was sized by the
+  canvas: reading that height back and writing it to the canvas grew the
+  container by its padding, the `ResizeObserver` reported the growth, and the
+  loop ran until the tab gave out. The canvas is collapsed for the measurement
+  now, which tells a container with a height of its own from one that was
+  following the canvas; the latter gets the default height.
+- `select` firing at the end of a drag pan, and never for a pie slice. A
+  release is a click only when no plugin captured a move of the press, and a
+  slice has no index, so a pie reports `{ index: -1, seriesId }`.
+- A cancelled pointer — a touch the browser took for scrolling — arriving as a
+  release, so a finger that landed on a legend pill and scrolled toggled the
+  series, and one that landed on the plot could select a point. It is a leave
+  now: nothing is under the pointer, and nothing was chosen.
+- The legend toggling on any release over a pill, wherever the press began. A
+  toggle is a press and a release on the same pill.
+
 ## 0.1.0 — 2026-08-26
 
 First public release. Everything below is relative to the unreleased state the

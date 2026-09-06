@@ -115,6 +115,8 @@ export class Chart {
   private needsLayout = true;
   private destroyed = false;
   private dragging = false;
+  /** True once a plugin has captured a move of the current press: releasing it is not a click. */
+  private dragged = false;
 
   constructor(target: HTMLElement | string, options: ChartOptions) {
     const host = typeof target === 'string' ? document.querySelector<HTMLElement>(target) : target;
@@ -375,7 +377,31 @@ export class Chart {
    */
   private measuredHeight(): number {
     if (this.explicitHeight !== undefined) return this.explicitHeight;
-    return this.container.clientHeight || this.canvas.clientHeight || DEFAULT_HEIGHT;
+    const room = this.containerRoom();
+    return room > 0 ? room : DEFAULT_HEIGHT;
+  }
+
+  /**
+   * Content height the container has for the canvas, or 0 when it has none of
+   * its own.
+   *
+   * The canvas sits inside the container it is measuring, so a container sized
+   * by its content is sized by the canvas. Reading that height back and writing
+   * it to the canvas grew the container by its padding, the ResizeObserver
+   * reported the growth, and the loop ran until the tab gave out. Collapsing
+   * the canvas first tells the two apart: a container with a height of its own
+   * stays put, one that was following the canvas shrinks. The collapsed
+   * reading, less the padding the canvas cannot use, is the room there is.
+   */
+  private containerRoom(): number {
+    const { container, canvas } = this;
+    const restore = canvas.style.height;
+    canvas.style.height = '0px';
+    const collapsed = container.clientHeight;
+    canvas.style.height = restore;
+    if (container.clientHeight > collapsed) return 0;
+    const style = window.getComputedStyle(container);
+    return collapsed - (Number.parseFloat(style.paddingTop) || 0) - (Number.parseFloat(style.paddingBottom) || 0);
   }
 
   invalidate(): void {
@@ -780,7 +806,7 @@ export class Chart {
     canvas.addEventListener('pointerdown', this.onPointerDown);
     canvas.addEventListener('pointermove', this.onPointerMove);
     canvas.addEventListener('pointerup', this.onPointerUp);
-    canvas.addEventListener('pointercancel', this.onPointerUp);
+    canvas.addEventListener('pointercancel', this.onPointerCancel);
     canvas.addEventListener('pointerleave', this.onPointerLeave);
   }
 
@@ -789,7 +815,7 @@ export class Chart {
     canvas.removeEventListener('pointerdown', this.onPointerDown);
     canvas.removeEventListener('pointermove', this.onPointerMove);
     canvas.removeEventListener('pointerup', this.onPointerUp);
-    canvas.removeEventListener('pointercancel', this.onPointerUp);
+    canvas.removeEventListener('pointercancel', this.onPointerCancel);
     canvas.removeEventListener('pointerleave', this.onPointerLeave);
   }
 
@@ -808,6 +834,7 @@ export class Chart {
 
   private onPointerDown = (event: PointerEvent): void => {
     this.dragging = true;
+    this.dragged = false;
     try {
       this.canvas.setPointerCapture(event.pointerId);
     } catch {
@@ -822,6 +849,31 @@ export class Chart {
 
   private onPointerUp = (event: PointerEvent): void => {
     const state = this.toState(event, 'up');
+    this.releasePointer(event);
+    this.dragging = false;
+    this.dispatchPointer(state);
+    // A press a plugin dragged — a pan, a scrubber handle — is a gesture, not a
+    // click, however precisely it is released. A slice has no index, so a pie
+    // reports the series alone.
+    if (state.inside && !this.dragged && (this.hoverIndex >= 0 || this.hoverSeriesId !== null)) {
+      this.emit('select', { index: this.hoverIndex, seriesId: this.hoverSeriesId });
+    }
+  };
+
+  /**
+   * The browser took the pointer back — a touch it decided was a scroll — so
+   * the press never ends in a click. Handled as a release, it toggled whatever
+   * legend pill the finger had landed on. It is a leave: nothing is under the
+   * pointer any more, and nothing was chosen.
+   */
+  private onPointerCancel = (event: PointerEvent): void => {
+    this.releasePointer(event);
+    this.dragging = false;
+    this.dragged = false;
+    this.dispatchPointer(this.toState(event, 'leave'));
+  };
+
+  private releasePointer(event: PointerEvent): void {
     try {
       if (this.canvas.hasPointerCapture(event.pointerId)) {
         this.canvas.releasePointerCapture(event.pointerId);
@@ -829,12 +881,7 @@ export class Chart {
     } catch {
       // Ignore pointers that are no longer active.
     }
-    this.dragging = false;
-    this.dispatchPointer(state);
-    if (state.inside && this.hoverIndex >= 0) {
-      this.emit('select', { index: this.hoverIndex, seriesId: this.hoverSeriesId });
-    }
-  };
+  }
 
   private onPointerLeave = (event: PointerEvent): void => {
     if (this.dragging) return;
@@ -853,8 +900,12 @@ export class Chart {
         break;
       }
     }
-    if (captured) this.setHover(-1, null);
-    else this.updateHover(state);
+    if (captured) {
+      if (state.type === 'move' && this.dragging) this.dragged = true;
+      this.setHover(-1, null);
+    } else {
+      this.updateHover(state);
+    }
     this.invalidate();
   }
 

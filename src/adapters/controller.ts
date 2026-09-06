@@ -1,5 +1,11 @@
 import { Chart } from '../core/chart.js';
 import type { ChartOptions, SeriesOptions, Theme } from '../core/types.js';
+// The built-in series types register themselves from the package entry, and a
+// page that imports only a wrapper never loads it: the chart it built had no
+// renderer for `line`, and threw on its first series. Loading the entry here
+// makes each wrapper entry self-sufficient; the plugins and themes it also
+// exports are unused references, which a bundler drops as usual.
+import '../index.js';
 
 /**
  * The fields the diff reads, copied out of the caller's options object.

@@ -184,6 +184,10 @@ export interface ChartOptions {
 }
 
 export interface PointerEventState {
+  /**
+   * `leave` also stands for a cancelled pointer — a touch the browser took for
+   * scrolling — so a press that ends that way never reads as a click.
+   */
   readonly type: 'move' | 'down' | 'up' | 'leave';
   /** Position in CSS pixels, relative to the canvas. */
   readonly x: number;
@@ -256,6 +260,11 @@ export interface Plugin {
 
 export interface ChartEvents {
   hover: { index: number; seriesId: string | null };
+  /**
+   * A click on a point, or on a pie slice, which has no index and reports the
+   * series alone. A press a plugin dragged — a pan, a scrubber handle — is not
+   * a click.
+   */
   select: { index: number; seriesId: string | null };
   rangechange: { from: number; to: number };
   toggle: { id: string; visible: boolean };

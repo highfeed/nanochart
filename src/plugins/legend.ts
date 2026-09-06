@@ -38,6 +38,8 @@ export function legend(options: LegendOptions = {}): Plugin {
   const vertical = options.orientation === 'vertical';
   const align = options.align ?? 'start';
   let items: Item[] = [];
+  /** Series whose pill the current press began on; a release anywhere else is not a click. */
+  let pressed: string | null = null;
 
   /** Lays rows out from y=0 and returns the total height they need. */
   const layout = (chart: Chart, left: number, width: number): number => {
@@ -134,8 +136,15 @@ export function legend(options: LegendOptions = {}): Plugin {
           event.y >= item.y &&
           event.y <= item.y + item.h,
       );
+      if (event.type === 'down') pressed = hit ? hit.series.id : null;
+      else if (event.type === 'up') {
+        // A toggle is a press and a release on the same pill. A release that
+        // began elsewhere — a drag off the plot, a scroll the browser cancelled
+        // — is not one, however precisely it lands.
+        if (hit && hit.series.id === pressed) chart.toggle(hit.series.id);
+        pressed = null;
+      } else if (event.type === 'leave') pressed = null;
       if (!hit) return false;
-      if (event.type === 'up') chart.toggle(hit.series.id);
       chart.canvas.style.cursor = 'pointer';
       return true;
     },
