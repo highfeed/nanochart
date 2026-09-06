@@ -2,12 +2,14 @@
 
 [![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
-[![gzip](https://img.shields.io/badge/gzip-15.5%20kB-brightgreen.svg)](#performance-notes)
+[![gzip](https://img.shields.io/badge/gzip-15.7%20kB-brightgreen.svg)](#performance-notes)
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **15.5 kB gzip** for a line chart with axes and a tooltip; 19.1 kB for all six
-  series types plus every plugin — unused ones tree-shake away
+- **15.7 kB gzip** for a line chart with axes and a tooltip, 13.6 kB through the
+  [lean entries](#lean-imports); 19.3 kB for all six series types plus every
+  plugin. Unused plugins tree-shake away, and the lean entries leave out the
+  series types the page does not register
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
 - **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching
 - **Plugin core**: axes, legend, tooltip and scrubber are plugins, and so is anything you add
@@ -28,6 +30,25 @@ Or drop the global build into a page:
 ```html
 <script src="nanochart.global.js"></script>
 ```
+
+### Lean imports
+
+The package entry registers all six series types, so a chart draws with
+nothing else set up — and so every import from it carries all six. Three
+entries leave the choice to the page:
+
+```js
+import { Chart, registerSeries, telegramLight } from 'nanochart.js/core';
+import { line } from 'nanochart.js/series';
+import { tooltip, xAxis, yAxis } from 'nanochart.js/plugins';
+
+registerSeries(line);
+```
+
+`/core` is the chart, the themes and the helpers; `/series` the renderers, none
+of them registered; `/plugins` the plugins. Nothing in the three has a side
+effect, so a bundler keeps only what the page names. The framework wrappers use
+the package entry.
 
 ## Quick start
 
@@ -114,6 +135,7 @@ yAxis({ labelPosition: 'inside', color: '#fff' }); // labels on top of filled ar
 yAxis({ placement: 'outside' });              // gutter beside the plot, sized to fit
 xAxis({ height: 26, spacing: 78, suffix: '%' });
 tooltip({ total: true, format: (value, series, index) => `$${value}` });
+tooltip({ total: true, formatTotal: (total, index) => `${total} in all` }); // the total row takes `format` otherwise
 legend({ position: 'top', align: 'center' });
 legend({ orientation: 'vertical', filter: (s) => s.axis === 'y' });
 rangeSelector({ height: 44, minSpan: 0.06 });
@@ -234,6 +256,15 @@ whatever changed: a new theme cross-fades, a changed series is patched rather
 than replacing the list, and identical options do nothing at all. A wrapper is
 handed a whole options object on every render, so treating that as "replace
 everything" would restart every animation on an unrelated prop change.
+
+Options the chart reads once — `x`, `y`, `y2`, `plugins`, `padding`,
+`animation`, `locale`, `timeZone`, `minSpan`, `ariaLabel` — rebuild the chart
+when they change, and `onChart` (React), `ready` (Vue) and `onChart` among the
+action's options (Svelte) report the new instance. Two rules keep the diff
+cheap. `data` is compared by identity and then by length: replace the array or
+push to it, but a value edited in place is not seen. A plugin is known by its
+name: a list rebuilt from the same plugins is the same list, and a plugin's own
+options are read when the chart is built.
 
 ## Themes
 

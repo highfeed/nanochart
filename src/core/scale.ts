@@ -153,12 +153,32 @@ export function timeTicks(min: number, max: number, count: number, formats = def
   const step = timeStep(max - min, count);
   const out: number[] = [];
   let value = alignTime(min, step, formats);
-  const months = Math.max(1, Math.round(step / MONTH));
   while (value <= max && out.length < 1000) {
     out.push(value);
-    value = step >= MONTH ? formats.addMonths(value, months) : value + step;
+    value = nextTick(value, step, formats);
   }
   return out;
+}
+
+/**
+ * The tick after `value`.
+ *
+ * A day is however long the zone makes it. Adding 86 400 000 to a midnight
+ * across a DST change lands an hour off the next one, and every tick after
+ * that inherits the hour: the day labels sat at 01:00, and the intraday day
+ * marker — the tick that lands exactly on a midnight — stopped appearing. Days
+ * and longer step from one midnight to the next; a sub-day step re-anchors on
+ * the midnight it crosses, so the rest of that day counts from it.
+ */
+function nextTick(value: number, step: number, formats: Formats): number {
+  if (step >= MONTH) return formats.addMonths(value, Math.max(1, Math.round(step / MONTH)));
+  // An hour past the step: a 25-hour day would otherwise land at 23:00 and
+  // snap back to the midnight it started from.
+  if (step >= DAY) return formats.startOfDay(value + step + HOUR);
+  const next = value + step;
+  if (step < HOUR) return next;
+  const midnight = formats.startOfDay(next);
+  return midnight > value ? midnight : next;
 }
 
 function alignTime(min: number, step: number, formats: Formats): number {
@@ -166,17 +186,16 @@ function alignTime(min: number, step: number, formats: Formats): number {
 
   // From an hour upwards, ticks anchor to midnight — and midnight is a
   // property of the chart's timezone, not of the machine drawing it.
+  let value: number;
   if (step >= MONTH) {
     const months = Math.max(1, Math.round(step / MONTH));
-    let value = formats.startOfMonth(min);
+    value = formats.startOfMonth(min);
     const aligned = Math.ceil(formats.monthOf(value) / months) * months;
     value = formats.addMonths(value, aligned - formats.monthOf(value));
-    while (value < min) value = formats.addMonths(value, months);
-    return value;
+  } else {
+    value = formats.startOfDay(min);
   }
-
-  let value = formats.startOfDay(min);
-  while (value < min) value += step;
+  while (value < min) value = nextTick(value, step, formats);
   return value;
 }
 

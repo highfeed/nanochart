@@ -23,8 +23,10 @@ export const NanoChart = defineComponent({
 
     onMounted(() => {
       if (!host.value) return;
-      controller = new ChartController(host.value, props.options);
-      emit('ready', controller.chart);
+      // `ready` fires again whenever an option the chart reads once — an axis,
+      // the plugin list — has it rebuilt, so a listener never holds a chart
+      // that was destroyed under it.
+      controller = new ChartController(host.value, props.options, (chart) => emit('ready', chart));
     });
 
     // Deep, because a caller mutating `options.series` in place is ordinary

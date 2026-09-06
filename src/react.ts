@@ -6,7 +6,11 @@ import type { ChartOptions } from './core/types.js';
 export interface NanoChartProps extends ChartOptions {
   className?: string;
   style?: CSSProperties;
-  /** Receives the chart once it exists, and null when it is torn down. */
+  /**
+   * Receives the chart once it exists, again whenever an option the chart
+   * reads once — an axis, the plugin list, the locale — has it rebuilt, and
+   * null when it is torn down.
+   */
   onChart?: (chart: Chart | null) => void;
 }
 
@@ -23,15 +27,16 @@ export function NanoChart({ className, style, onChart, ...options }: NanoChartPr
   const controller = useRef<ChartController | null>(null);
   const latest = useRef(options);
   latest.current = options;
+  const report = useRef(onChart);
+  report.current = onChart;
 
   // Mount and teardown only; option changes go through the effect below.
   useEffect(() => {
     if (!host.current) return;
-    const created = new ChartController(host.current, latest.current);
+    const created = new ChartController(host.current, latest.current, (chart) => report.current?.(chart));
     controller.current = created;
-    onChart?.(created.chart);
     return () => {
-      onChart?.(null);
+      report.current?.(null);
       created.destroy();
       controller.current = null;
     };

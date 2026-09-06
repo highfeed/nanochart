@@ -13,9 +13,12 @@ import { build } from 'esbuild';
  *
  * `CORE_LIMIT` covers what a typical chart imports, which is the figure worth
  * quoting — hardly anyone pulls in all six series types and every plugin.
+ * `LEAN_LIMIT` is the same chart through `/core`, `/series` and `/plugins`,
+ * which register nothing and so carry only the series type the page draws.
  */
-const CORE_LIMIT = 15.6 * 1024;
-const FULL_LIMIT = 19.25 * 1024;
+const CORE_LIMIT = 15.75 * 1024;
+const FULL_LIMIT = 19.4 * 1024;
+const LEAN_LIMIT = 13.7 * 1024;
 
 const kb = (value) => `${(value / 1024).toFixed(2)} kB`;
 
@@ -47,6 +50,38 @@ for (const target of targets) {
   }
 }
 
+const dir = mkdtempSync(join(tmpdir(), 'nanochart-size-'));
+// From `dist`, the files a bundler sees: `sideEffects` in package.json names
+// `dist/index.js` and nothing under `src`, so bundled from the sources esbuild
+// takes the entry for side-effect free and drops the series registration it
+// exists for, which understates what a page importing the package gets.
+const dist = (file) => join(process.cwd(), 'dist', file);
+
+/** Size of a bundle built from `source` the way a user's bundler would build it. */
+async function measure(name, source) {
+  const entry = join(dir, `${name}.ts`);
+  writeFileSync(entry, source);
+  const out = await build({
+    entryPoints: [entry],
+    bundle: true,
+    minify: true,
+    format: 'esm',
+    target: 'es2020',
+    legalComments: 'none',
+    write: false,
+  });
+  const bytes = out.outputFiles[0].contents;
+  return { bytes: bytes.length, gzip: gzipSync(Buffer.from(bytes), { level: 9 }).length };
+}
+
+function report(label, size, limit, name) {
+  console.log(`${label.padEnd(28)} ${kb(size.bytes).padStart(9)}  gzip ${kb(size.gzip).padStart(9)}`);
+  if (size.gzip > limit) {
+    console.error(`\n${name} over budget: ${kb(size.gzip)} gzip > ${kb(limit)}`);
+    process.exitCode = 1;
+  }
+}
+
 /**
  * What a typical chart actually costs.
  *
@@ -54,28 +89,35 @@ for (const target of targets) {
  * all of them, and quoting only that number understates how small a line chart
  * is. Measuring a realistic import keeps both figures honest.
  */
-const CORE = `
-  import { Chart, line, registerSeries, xAxis, yAxis, tooltip } from '${join(process.cwd(), 'src/index.ts')}';
-  console.log(Chart, line, registerSeries, xAxis, yAxis, tooltip);
-`;
-
-const dir = mkdtempSync(join(tmpdir(), 'nanochart-size-'));
-const entry = join(dir, 'core.ts');
-writeFileSync(entry, CORE);
-const core = await build({
-  entryPoints: [entry],
-  bundle: true,
-  minify: true,
-  format: 'esm',
-  target: 'es2020',
-  legalComments: 'none',
-  write: false,
-});
-const coreGzip = gzipSync(Buffer.from(core.outputFiles[0].contents), { level: 9 }).length;
-console.log(
-  `${'line chart + axes + tooltip'.padEnd(28)} ${kb(core.outputFiles[0].contents.length).padStart(9)}  gzip ${kb(coreGzip).padStart(9)}`,
+report(
+  'line chart + axes + tooltip',
+  await measure(
+    'core',
+    `
+    import { Chart, line, registerSeries, xAxis, yAxis, tooltip } from '${dist('index.js')}';
+    console.log(Chart, line, registerSeries, xAxis, yAxis, tooltip);
+  `,
+  ),
+  CORE_LIMIT,
+  'core',
 );
-if (coreGzip > CORE_LIMIT) {
-  console.error(`\ncore over budget: ${kb(coreGzip)} gzip > ${kb(CORE_LIMIT)}`);
-  process.exitCode = 1;
-}
+
+/**
+ * The same chart through the lean entries, which register nothing, so the five
+ * series types the page does not draw are not in it.
+ */
+report(
+  'same, via the lean entries',
+  await measure(
+    'lean',
+    `
+    import { Chart, registerSeries } from '${dist('core.js')}';
+    import { line } from '${dist('series.js')}';
+    import { tooltip, xAxis, yAxis } from '${dist('plugins.js')}';
+    registerSeries(line);
+    console.log(Chart, xAxis, yAxis, tooltip);
+  `,
+  ),
+  LEAN_LIMIT,
+  'lean',
+);

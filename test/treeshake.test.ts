@@ -39,6 +39,30 @@ describe.runIf(existsSync(dist))('tree shaking', () => {
     expect(probe).toEqual({ chart: 'function', line: true });
   });
 
+  it('leaves the built-in series out of a bundle built on the lean entries', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'nanochart-lean-'));
+    const entry = join(dir, 'entry.mjs');
+    writeFileSync(
+      entry,
+      `import { Chart, registerSeries } from ${JSON.stringify(join(root, 'dist', 'core.js'))};\n` +
+        `import { line } from ${JSON.stringify(join(root, 'dist', 'series.js'))};\n` +
+        `import { getSeriesRenderer } from ${JSON.stringify(join(root, 'dist', 'core', 'registry.js'))};\n` +
+        `registerSeries(line);\n` +
+        `console.log(JSON.stringify({ chart: typeof Chart, line: !!getSeriesRenderer('line'), pie: !!getSeriesRenderer('pie') }));\n`,
+    );
+
+    const bundle = await rollup({ input: entry, plugins: [nodeResolve()], onwarn: () => {} });
+    const { output } = await bundle.generate({ format: 'es' });
+    const file = join(dir, 'out.mjs');
+    writeFileSync(file, output[0].code);
+
+    const probe = JSON.parse(execFileSync(process.execPath, [file], { encoding: 'utf8' }));
+    expect(probe).toEqual({ chart: 'function', line: true, pie: false });
+    // Not merely unregistered: not in the bundle at all. The quotes matter —
+    // Rollup keeps comments, and the data module's mention one.
+    expect(output[0].code).not.toMatch(/['"]candlestick['"]/);
+  });
+
   it('declares the entry as side-effectful in package.json', () => {
     const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
     expect(pkg.sideEffects).toContain('./dist/index.js');

@@ -67,13 +67,18 @@ export function rangeSelector(options: RangeSelectorOptions = {}): Plugin {
       const scales = {} as Record<AxisId, Scale>;
       for (const axis of AXES) {
         const state = domains[axis];
+        const options = chart.axisOptions(axis);
         const raw = chart.measureExtent(axis, e0, e1);
         if (raw) {
-          const nice = chart.niceDomain(axis === 'y' ? chart.yAxis : chart.y2Axis, raw);
+          // The plot's own domain rules, so a log axis is a log axis in the
+          // preview too, rather than a linear one with everything below the
+          // top decade flattened along the bottom.
+          const nice = options.type === 'log' ? chart.logDomain(options, raw) : chart.niceDomain(options, raw);
           state.min.set(nice.min, ctx.now, chart.duration);
           state.max.set(nice.max, ctx.now, chart.duration);
         }
-        scales[axis] = scaleLinear(
+        scales[axis] = chart.buildScale(
+          options,
           state.min.at(ctx.now),
           state.max.at(ctx.now),
           inner.y + inner.h,

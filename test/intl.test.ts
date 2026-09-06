@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { drawOnce, installCanvas, mount } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import { createFormats } from '../src/core/intl.js';
-import { timeTicks } from '../src/core/scale.js';
+import { timeFormatter, timeTicks } from '../src/core/scale.js';
 import { createFormats as createFormatsFromEntry, xAxis } from '../src/index.js';
 
 beforeAll(installCanvas);
@@ -140,5 +140,35 @@ describe('chart locale', () => {
     expect(labels.some((l) => /Jan|Feb|Mär/.test(l))).toBe(true);
     expect(chart.formats.locale).toBe('de-DE');
     chart.destroy();
+  });
+});
+
+describe('time ticks across a DST change', () => {
+  const berlin = createFormats('en-GB', 'Europe/Berlin');
+
+  it('keeps day ticks on midnight after the clocks go forward', () => {
+    // Berlin springs forward on 30 March 2025. Adding 86 400 000 to the
+    // midnight before it put every later tick on 01:00.
+    const ticks = timeTicks(Date.UTC(2025, 2, 26), Date.UTC(2025, 3, 5), 5, berlin);
+    expect(ticks.length).toBeGreaterThan(3);
+    for (const tick of ticks) expect(tick).toBe(berlin.startOfDay(tick));
+  });
+
+  it('keeps day ticks on midnight after the clocks go back, without doubling a day', () => {
+    // Berlin falls back on 26 October 2025, a 25-hour day.
+    const ticks = timeTicks(Date.UTC(2025, 9, 22), Date.UTC(2025, 9, 31), 5, berlin);
+    for (const tick of ticks) expect(tick).toBe(berlin.startOfDay(tick));
+    expect(new Set(ticks.map((tick) => berlin.day(tick))).size).toBe(ticks.length);
+  });
+
+  it('marks the day again on an intraday axis past the change', () => {
+    const from = Date.UTC(2025, 2, 29, 12);
+    const to = Date.UTC(2025, 3, 1, 12);
+    const ticks = timeTicks(from, to, 12, berlin);
+    const label = timeFormatter(to - from, 12, berlin);
+    // Midnight on 31 March in Berlin, now two hours ahead of UTC.
+    const midnight = Date.UTC(2025, 2, 30, 22);
+    expect(ticks).toContain(midnight);
+    expect(label(midnight)).toBe('31 Mar');
   });
 });
