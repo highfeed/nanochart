@@ -9,6 +9,29 @@ describe('formatCompact', () => {
     expect(formatCompact(1_500_000)).toBe('1.5M');
     expect(formatCompact(-2400)).toBe('-2.4K');
   });
+
+  it('goes to scientific notation past the last unit', () => {
+    // The units end at T, and a volume in satoshi or wei runs past it: 1e18
+    // came out as "1000000T".
+    expect(formatCompact(999e12)).toBe('999T');
+    expect(formatCompact(1e15)).toBe('1e15');
+    expect(formatCompact(1e18)).toBe('1e18');
+    expect(formatCompact(2.5e21)).toBe('2.5e21');
+    expect(formatCompact(-1e18)).toBe('-1e18');
+  });
+
+  it('prints a non-finite value as it is', () => {
+    expect(formatCompact(Infinity)).toBe('Infinity');
+    expect(formatCompact(NaN)).toBe('NaN');
+    expect(compactFormatter(1)(-Infinity)).toBe('-Infinity');
+  });
+
+  it('changes unit exactly at each thousand', () => {
+    expect(formatCompact(999.9999)).toBe('1000');
+    expect(formatCompact(1000)).toBe('1K');
+    expect(formatCompact(999_999)).toBe('1000K');
+    expect(formatCompact(1_000_000)).toBe('1M');
+  });
 });
 
 describe('compactFormatter', () => {
@@ -28,6 +51,12 @@ describe('compactFormatter', () => {
 
   it('goes on working further down', () => {
     expect([5e-9, 1e-8].map(compactFormatter(5e-9))).toEqual(['0.000000005', '0.00000001']);
+  });
+
+  it('keeps ticks apart past the last unit', () => {
+    expect([1e18, 2e18, 3e18].map(compactFormatter(1e18))).toEqual(['1e18', '2e18', '3e18']);
+    expect([1e18, 1.5e18, 2e18].map(compactFormatter(5e17))).toEqual(['1e18', '1.5e18', '2e18']);
+    expect([-2e15, 2e15].map(compactFormatter(2e15))).toEqual(['-2e15', '2e15']);
   });
 
   it('did not lose the range that already worked', () => {

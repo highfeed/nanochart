@@ -23,7 +23,7 @@ export { createFormats, type Formats } from './core/intl.js';
 export { Renderer, type TextStyle } from './core/renderer.js';
 export { getSeriesRenderer, registerSeries } from './core/registry.js';
 export { Animated, easeInOutCubic, easeLinear, easeOutCubic, easeOutQuint, type Easing } from './core/animate.js';
-export { mixColorStrings, parseColor, rgbaToString, withAlpha, type RGBA } from './core/color.js';
+export { mixColorStrings, parseColor, readableOn, rgbaToString, withAlpha, type RGBA } from './core/color.js';
 export {
   linearTicks,
   logTicks,

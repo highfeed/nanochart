@@ -7,23 +7,33 @@ export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t
 
 const COMPACT_UNITS = ['', 'K', 'M', 'B', 'T'];
 
-/** 1234 -> "1.2K" */
+/** 1234 -> "1.2K"; past the last unit, 1e18 -> "1e18" rather than "1000000T". */
 export function formatCompact(value: number): string {
   const abs = Math.abs(value);
   if (abs < 1000) return trimZero(value, abs < 10 && !Number.isInteger(value) ? 1 : 0);
-  let unit = 0;
-  let scaled = value;
-  while (Math.abs(scaled) >= 1000 && unit < COMPACT_UNITS.length - 1) {
-    scaled /= 1000;
-    unit++;
-  }
+  const unit = unitOf(value);
+  if (unit >= COMPACT_UNITS.length) return exponent(value, 1);
+  const scaled = value / 1000 ** unit;
   return trimZero(scaled, Math.abs(scaled) < 10 ? 1 : 0) + COMPACT_UNITS[unit];
 }
 
+/**
+ * Thousands past the first, off the exponent `toExponential` prints: exact,
+ * where a logarithm can land a hair short of a whole one. A non-finite value
+ * has no exponent and stays in the first unit, to be printed as it is.
+ */
 function unitOf(value: number): number {
-  const abs = Math.abs(value);
-  if (abs < 1000) return 0;
-  return Math.min(COMPACT_UNITS.length - 1, Math.floor(Math.log10(abs) / 3));
+  const power = Number(value.toExponential().split('e')[1]);
+  return power >= 3 ? Math.floor(power / 3) : 0;
+}
+
+/**
+ * Scientific notation for what the units do not reach — wei, satoshi, a
+ * population in atoms: 1e18 -> "1e18", 2.5e21 -> "2.5e21".
+ */
+function exponent(value: number, decimals: number): string {
+  const [mantissa, power] = value.toExponential(Math.min(decimals, 20)).split('e');
+  return `${trimZeros(mantissa)}e${Number(power)}`;
 }
 
 /** Past this, a double has no digits left to tell two ticks apart with. */
@@ -53,9 +63,12 @@ export function compactFormatter(step: number): (value: number) => string {
   return (value) => {
     if (value === 0) return '0';
     const unit = unitOf(value);
+    if (unit >= COMPACT_UNITS.length) {
+      const power = Number(value.toExponential().split('e')[1]);
+      return exponent(value, decimalsOf(Math.abs(step) / 10 ** power));
+    }
     const scale = 1000 ** unit;
-    const text = (value / scale).toFixed(decimalsOf(Math.abs(step) / scale));
-    return (text.includes('.') ? text.replace(/\.?0+$/, '') : text) + COMPACT_UNITS[unit];
+    return trimZeros((value / scale).toFixed(decimalsOf(Math.abs(step) / scale))) + COMPACT_UNITS[unit];
   };
 }
 
@@ -87,6 +100,11 @@ export function formatGrouped(value: number): string {
 function trimZero(value: number, digits: number): string {
   const text = value.toFixed(digits);
   return digits > 0 && text.endsWith('.0') ? text.slice(0, -2) : text;
+}
+
+/** "1.50" -> "1.5", "2.00" -> "2". */
+function trimZeros(text: string): string {
+  return text.includes('.') ? text.replace(/\.?0+$/, '') : text;
 }
 
 export function formatPercent(value: number): string {

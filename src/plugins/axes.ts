@@ -5,16 +5,27 @@ import { linearTickSet, logTicks, timeFormatter, timeTicks } from '../core/scale
 import type { AxisId, DrawContext, Plugin } from '../core/types.js';
 import { compactFormatter, formatLog } from '../core/utils.js';
 
-/** Cross-fades between the old and the new tick set when the step changes. */
+/**
+ * Cross-fades between the old and the new tick set when the step changes.
+ *
+ * Tick by tick, not set over set: a value in both sets — zero, a decade, the
+ * midnight two steps share — holds at full strength while the ones around it
+ * swap. Drawn as two whole sets, one at 1 − t over the other at t, every
+ * shared label dipped to 75% in the middle of the fade, and the axis took a
+ * breath each time a label came into the window.
+ */
 class TickFader {
   private previous: number[] = [];
   private current: number[] = [];
+  /** Values in both sets, which neither fade out nor in. */
+  private kept = new Set<number>();
   private readonly fade = new Animated(1);
 
   update(ticks: readonly number[], now: number, duration: number): void {
     if (same(ticks, this.current)) return;
     this.previous = this.current;
     this.current = ticks.slice();
+    this.kept = new Set(this.previous.filter((value) => this.current.includes(value)));
     // The first set has nothing to cross-fade from, so it appears at once.
     // Fading it in would leave the axis blank on the opening frame, and blank
     // for good if the next frame is delayed — a background tab, a throttled
@@ -27,10 +38,17 @@ class TickFader {
     this.fade.set(1, now, duration);
   }
 
-  each(now: number, draw: (ticks: readonly number[], alpha: number) => void): void {
+  /** Calls `draw` for every tick on its way out or in, or there to stay, with its strength right now. */
+  each(now: number, draw: (value: number, index: number, alpha: number) => void): void {
     const t = this.fade.at(now);
-    if (t < 1 && this.previous.length) draw(this.previous, 1 - t);
-    draw(this.current, t);
+    if (t < 1) {
+      for (let i = 0; i < this.previous.length; i++) {
+        if (!this.kept.has(this.previous[i])) draw(this.previous[i], i, 1 - t);
+      }
+    }
+    for (let i = 0; i < this.current.length; i++) {
+      draw(this.current[i], i, this.kept.has(this.current[i]) ? 1 : t);
+    }
   }
 
   active(now: number): boolean {
@@ -73,6 +91,13 @@ export interface YAxisOptions {
   placement?: 'overlay' | 'outside';
   /** Gap between the gutter and the plot, in `outside` placement. */
   gutter?: number;
+  /**
+   * A wash of the background colour behind each label, so it reads on top of a
+   * bar or a filled area. On in `overlay` placement unless the labels have a
+   * `color` of their own, which was chosen against the fill; an `outside` axis
+   * has nothing behind its labels.
+   */
+  backdrop?: boolean;
   format?: (value: number) => string;
   fontSize?: number;
 }
@@ -119,13 +144,11 @@ export function yAxis(options: YAxisOptions = {}): Plugin {
       const scale = ctx.scaleFor(axis);
       const box = ctx.box;
       const gridColor = ctx.color('grid');
-      fader.each(ctx.now, (ticks, alpha) => {
+      fader.each(ctx.now, (value, _index, alpha) => {
         if (alpha <= 0.01) return;
-        for (const value of ticks) {
-          const y = scale.map(value);
-          if (y < box.y - 2 || y > box.y + box.h + 2) continue;
-          ctx.r.hline(box.x, box.x + box.w, y, withAlpha(gridColor, alpha));
-        }
+        const y = scale.map(value);
+        if (y < box.y - 2 || y > box.y + box.h + 2) return;
+        ctx.r.hline(box.x, box.x + box.w, y, withAlpha(gridColor, alpha));
       });
     },
 
@@ -147,19 +170,28 @@ export function yAxis(options: YAxisOptions = {}): Plugin {
       // Outside the plot there is nothing to sit clear of, so labels centre on
       // their grid line instead of perching above it.
       const below = outside ? false : position !== 'above';
-      fader.each(ctx.now, (ticks, alpha) => {
+      const backdrop = !outside && (options.backdrop ?? !options.color);
+      const wash = backdrop ? ctx.color('background') : '';
+      fader.each(ctx.now, (value, _index, alpha) => {
         if (alpha <= 0.01) return;
-        for (const value of ticks) {
-          const y = scale.map(value);
-          if (y < box.y - 2 || y > box.y + box.h + 2) continue;
-          if (!outside && position === 'inside' && y + 5 + size > box.y + box.h) continue;
-          ctx.r.text(formatter(value, 0), x, outside ? y : below ? y + 5 : y - 6, {
-            font,
-            color: withAlpha(textColor, alpha),
-            align: outside ? (align === 'left' ? 'right' : 'left') : align,
-            baseline: outside ? 'middle' : below ? 'top' : 'bottom',
-          });
+        const y = scale.map(value);
+        if (y < box.y - 2 || y > box.y + box.h + 2) return;
+        if (!outside && position === 'inside' && y + 5 + size > box.y + box.h) return;
+        const label = formatter(value, 0);
+        const ty = outside ? y : below ? y + 5 : y - 6;
+        if (backdrop) {
+          // Over the plain background the wash is invisible; over the first
+          // bar it is what makes a muted grey label readable.
+          const w = ctx.r.measure(label, font) + 6;
+          const left = align === 'left' ? x - 3 : x - w + 3;
+          ctx.r.fillRoundRect(left, below ? ty - 2 : ty - size - 2, w, size + 4, 3, withAlpha(wash, 0.8 * alpha));
         }
+        ctx.r.text(label, x, ty, {
+          font,
+          color: withAlpha(textColor, alpha),
+          align: outside ? (align === 'left' ? 'right' : 'left') : align,
+          baseline: outside ? 'middle' : below ? 'top' : 'bottom',
+        });
       });
     },
   };
@@ -232,7 +264,8 @@ export function xAxis(options: XAxisOptions = {}): Plugin {
     drawUnder(ctx) {
       const chart = ctx.chart;
       const box = ctx.box;
-      const count = Math.max(2, Math.floor(box.w / spacing));
+      // The axis options offer a count as well, and win over the spacing.
+      const count = chart.xAxis.ticks ?? Math.max(2, Math.floor(box.w / spacing));
       const type = chart.xAxis.type;
       const span = ctx.x.d1 - ctx.x.d0;
 
@@ -261,22 +294,17 @@ export function xAxis(options: XAxisOptions = {}): Plugin {
       const color = ctx.color('textMuted');
       const y = box.y + box.h + height / 2 + 2;
 
-      fader.each(ctx.now, (values, alpha) => {
+      fader.each(ctx.now, (value, index, alpha) => {
         if (alpha <= 0.01) return;
-        for (let i = 0; i < values.length; i++) {
-          const label = format(values[i], i);
-          const width = ctx.r.measure(label, font);
-          const px = Math.min(
-            Math.max(ctx.x.map(values[i]), box.x + width / 2),
-            box.x + box.w - width / 2,
-          );
-          ctx.r.text(label, px, y, {
-            font,
-            color: withAlpha(color, alpha),
-            align: 'center',
-            baseline: 'middle',
-          });
-        }
+        const label = format(value, index);
+        const width = ctx.r.measure(label, font);
+        const px = Math.min(Math.max(ctx.x.map(value), box.x + width / 2), box.x + box.w - width / 2);
+        ctx.r.text(label, px, y, {
+          font,
+          color: withAlpha(color, alpha),
+          align: 'center',
+          baseline: 'middle',
+        });
       });
     },
   };

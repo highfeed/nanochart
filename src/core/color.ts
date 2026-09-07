@@ -201,6 +201,18 @@ export function mixColorStrings(a: string, b: string, t: number): string {
   return rgbaToString(mixColors(parseColor(a), parseColor(b), t));
 }
 
+/**
+ * Black or white, whichever reads on `color`.
+ *
+ * Judged by perceived brightness rather than WCAG luminance, which prefers
+ * black on a mid blue where every eye prefers white. The dark answer is not
+ * quite black, the way text on a light ground is not.
+ */
+export function readableOn(color: string): string {
+  const [r, g, b] = parseColor(color);
+  return (r * 299 + g * 587 + b * 114) / 255_000 > 0.6 ? 'rgba(0,0,0,0.8)' : '#ffffff';
+}
+
 export function withAlpha(color: string, alpha: number): string {
   if (alpha >= 1) return color;
   if (alpha <= 0) return 'rgba(0,0,0,0)';
