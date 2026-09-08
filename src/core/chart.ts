@@ -731,7 +731,18 @@ export class Chart {
     return axis === 'y' ? this.yAxis : this.y2Axis;
   }
 
-  private buildScale(options: AxisOptions, d0: number, d1: number, r0: number, r1: number): Scale {
+  /** Whole decades around the raw extent, unless the options pin a bound. */
+  logDomain(options: AxisOptions, raw: { min: number; max: number }): { min: number; max: number } {
+    const nice = niceLogDomain(raw.min, raw.max);
+    return { min: options.min ?? nice.min, max: options.max ?? nice.max };
+  }
+
+  /**
+   * The scale an axis's options call for. A plugin drawing its own copy of the
+   * plot — the scrubber's preview — builds its scales here too, so a log axis
+   * is a log axis there as well.
+   */
+  buildScale(options: AxisOptions, d0: number, d1: number, r0: number, r1: number): Scale {
     return options.type === 'log' ? scaleLog(d0, d1, r0, r1) : scaleLinear(d0, d1, r0, r1);
   }
 
@@ -749,8 +760,7 @@ export class Chart {
       if (options.type === 'log') {
         // Decades are already round numbers, so a log axis neither snaps to a
         // step nor shares a tick count with the other axis.
-        const low = options.min ?? niceLogDomain(raw.min, raw.max).min;
-        const high = options.max ?? niceLogDomain(raw.min, raw.max).max;
+        const { min: low, max: high } = this.logDomain(options, raw);
         if (domain.min.target !== low || domain.max.target !== high) {
           domain.step = 0;
           this.setTicks(domain, logTicks(low, high, options.ticks ?? 6));

@@ -11,7 +11,16 @@ export interface TextStyle {
   alpha?: number;
 }
 
-/** Thin wrapper over Canvas2D: device pixel ratio, crisp lines, cached text metrics. */
+/**
+ * Thin wrapper over Canvas2D: device pixel ratio, crisp lines, cached text metrics.
+ *
+ * `text()` and `measure()` set the context's font only when it changed, which
+ * is what makes them cheap. `save()` and `restore()` keep that record in step
+ * with the context's own state, so code that draws text between a save and a
+ * restore should call the renderer's pair, not the context's: a raw restore
+ * puts the old font back without the record knowing, and the next request for
+ * the new one is skipped as already set.
+ */
 export class Renderer {
   readonly canvas: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
@@ -21,6 +30,8 @@ export class Renderer {
 
   private readonly metrics = new Map<string, number>();
   private currentFont = '';
+  /** The font in force at each `save()`, restored alongside the context's. */
+  private readonly fonts: string[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -45,6 +56,9 @@ export class Renderer {
 
   begin(background: string): void {
     const { ctx } = this;
+    // Whatever font the context was left with, it is set afresh this frame.
+    this.currentFont = '';
+    this.fonts.length = 0;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.clearRect(0, 0, this.width, this.height);
     ctx.lineJoin = 'round';
@@ -62,18 +76,20 @@ export class Renderer {
 
   clip(box: Box): void {
     const { ctx } = this;
-    ctx.save();
+    this.save();
     ctx.beginPath();
     ctx.rect(box.x, box.y, box.w, box.h);
     ctx.clip();
   }
 
   save(): void {
+    this.fonts.push(this.currentFont);
     this.ctx.save();
   }
 
   restore(): void {
     this.ctx.restore();
+    this.currentFont = this.fonts.pop() ?? '';
   }
 
   hline(x0: number, x1: number, y: number, color: string, width = 1): void {

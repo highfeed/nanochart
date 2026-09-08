@@ -1,9 +1,9 @@
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
-import { contextOf, installCanvas, mount, useClock } from './helpers/dom.js';
+import { contextOf, drawOnce, installCanvas, mount, useClock } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import { logTicks, niceLogDomain, scaleLog } from '../src/core/scale.js';
 import { formatLog } from '../src/core/utils.js';
-import { xAxis, yAxis } from '../src/index.js';
+import { rangeSelector, xAxis, yAxis } from '../src/index.js';
 
 beforeAll(installCanvas);
 let clock: ReturnType<typeof useClock> | undefined;
@@ -74,6 +74,30 @@ describe('log axis end to end', () => {
     expect(labels).toContain('10K');
     // The old compactFormatter(step) path rendered every sub-1 tick as "0".
     expect(labels.filter((l) => l === '0')).toHaveLength(0);
+    chart.destroy();
+  });
+
+  it('keeps its log scale in the scrubber preview', () => {
+    const host = mount(600, 300);
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      padding: { left: 0, right: 0, top: 0, bottom: 0 },
+      y: { type: 'log' },
+      series: [{ id: 'a', type: 'line', data: [1, 10, 100, 1000, 10000] }],
+      plugins: [rangeSelector({ height: 100, offset: 0 })],
+    });
+    const ctx = drawOnce(chart);
+    const bottom = chart.plot.y + chart.plot.h;
+    // The preview polyline is the only lineTo below the plot; the window and
+    // its grips are rects and arcs.
+    const ys = ctx.calls('lineTo').map((op) => op.args[1] as number).filter((y) => y > bottom);
+    expect(ys).toHaveLength(4);
+    const gaps = ys.slice(1).map((y, i) => ys[i] - y);
+    // Decades an equal distance apart, as on the axis above. On a linear scale
+    // the first three would be crammed into a couple of pixels.
+    expect(gaps[0]).toBeGreaterThan(10);
+    for (const gap of gaps) expect(gap).toBeCloseTo(gaps[0], 6);
     chart.destroy();
   });
 

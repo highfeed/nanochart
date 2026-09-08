@@ -2,7 +2,8 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { installCanvas, mount } from './helpers/dom.js';
 import { ChartController } from '../src/adapters/controller.js';
 import { nanochart } from '../src/svelte.js';
-import { telegramDark, telegramLight } from '../src/index.js';
+import { telegramDark, telegramLight, xAxis, yAxis } from '../src/index.js';
+import type { Chart } from '../src/core/chart.js';
 import type { ChartOptions } from '../src/core/types.js';
 
 beforeAll(installCanvas);
@@ -143,7 +144,76 @@ describe('ChartController', () => {
   });
 });
 
+describe('ChartController and the options a chart reads once', () => {
+  it('rebuilds the chart when one of them changes, and reports the new one', () => {
+    const host = mount();
+    const seen: Chart[] = [];
+    const controller = new ChartController(host, base({ x: { type: 'linear' } }), (chart) => seen.push(chart));
+    const first = controller.chart;
+    controller.update(base({ x: { type: 'time' } }));
+    expect(controller.chart).not.toBe(first);
+    expect(controller.chart.xAxis.type).toBe('time');
+    expect(seen).toEqual([first, controller.chart]);
+    // The old chart is gone, not left beside the new one.
+    expect(host.querySelectorAll('canvas')).toHaveLength(1);
+    controller.destroy();
+  });
+
+  it('keeps the chart across an axis object rebuilt with the same fields', () => {
+    const host = mount();
+    const controller = new ChartController(host, base({ x: { type: 'category', categories: ['a', 'b', 'c'] } }));
+    const first = controller.chart;
+    controller.update(base({ x: { type: 'category', categories: ['a', 'b', 'c'] } }));
+    expect(controller.chart).toBe(first);
+    controller.destroy();
+  });
+
+  it('tells a changed plugin list from a re-created one', () => {
+    const host = mount();
+    const controller = new ChartController(host, base({ plugins: [yAxis()] }));
+    const first = controller.chart;
+    // A page that builds its plugins inline hands over new instances every render.
+    controller.update(base({ plugins: [yAxis()] }));
+    expect(controller.chart).toBe(first);
+    controller.update(base({ plugins: [yAxis(), xAxis()] }));
+    expect(controller.chart).not.toBe(first);
+    controller.destroy();
+  });
+
+  it('follows a series whose data was appended to in place', () => {
+    const host = mount();
+    const data = [1, 2, 3];
+    const options = base({ series: [{ id: 'a', type: 'line', data }] });
+    const controller = new ChartController(host, options);
+    data.push(4);
+    controller.update(options);
+    expect(controller.chart.series[0].data.length).toBe(4);
+    controller.destroy();
+  });
+
+  it('patches only the fields that changed', () => {
+    const host = mount();
+    const data = [1, 2, 3];
+    const controller = new ChartController(host, base({ series: [{ id: 'a', type: 'line', data }] }));
+    const parsed = controller.chart.series[0].data;
+    controller.update(base({ series: [{ id: 'a', type: 'line', data, color: '#f00' }] }));
+    expect(controller.chart.series[0].options.color).toBe('#f00');
+    // Same samples, same array: nothing to parse again.
+    expect(controller.chart.series[0].data).toBe(parsed);
+    controller.destroy();
+  });
+});
+
 describe('svelte action', () => {
+  it('hands the chart to onChart', () => {
+    const host = mount();
+    let seen: Chart | null = null;
+    const action = nanochart(host, { ...base(), onChart: (chart) => { seen = chart; } });
+    expect(seen).not.toBeNull();
+    expect(host.querySelector('canvas')).toBeTruthy();
+    action.destroy();
+  });
+
   it('mounts, updates and tears down', () => {
     const host = mount();
     const action = nanochart(host, base());
@@ -174,6 +244,30 @@ describe('react wrapper', () => {
 
     await act(async () => root.unmount());
     expect(host.querySelector('canvas')).toBeNull();
+  });
+
+  it('reports the chart again after a rebuild', async () => {
+    const { createElement } = await import('react');
+    const { createRoot } = await import('react-dom/client');
+    const { NanoChart } = await import('../src/react.js');
+    const { act } = await import('react');
+
+    const host = mount();
+    const root = createRoot(host);
+    const seen: (Chart | null)[] = [];
+    const render = (x: ChartOptions['x']) =>
+      act(async () => {
+        root.render(createElement(NanoChart, { ...base(), x, onChart: (c: Chart | null) => seen.push(c) }));
+      });
+
+    await render({ type: 'linear' });
+    await render({ type: 'time' });
+    expect(seen).toHaveLength(2);
+    expect(seen[1]).not.toBe(seen[0]);
+    expect(seen[1]?.xAxis.type).toBe('time');
+
+    await act(async () => root.unmount());
+    expect(seen[2]).toBeNull();
   });
 });
 
@@ -207,6 +301,27 @@ describe('vue wrapper', () => {
     options.series = [{ id: 'a', type: 'line', name: 'A', data: [1, 2, 3, 4, 5] }];
     await nextTick();
     expect(chart!.series[0].data.length).toBe(5);
+
+    app.unmount();
+  });
+
+  it('follows a series pushed to in place', async () => {
+    const { createApp, h, nextTick, reactive } = await import('vue');
+    const { NanoChart } = await import('../src/vue.js');
+
+    const host = mount();
+    const options = reactive(base());
+    let chart: Chart | null = null;
+    const app = createApp({
+      render: () => h(NanoChart, { options, onReady: (c: Chart) => { chart = c; } }),
+    });
+    app.mount(host);
+
+    // The ordinary way to stream into a Vue-held array. The deep watch fires,
+    // and the array is the same array, one sample longer.
+    (options.series[0].data as number[]).push(4);
+    await nextTick();
+    expect(chart!.series[0].data.length).toBe(4);
 
     app.unmount();
   });

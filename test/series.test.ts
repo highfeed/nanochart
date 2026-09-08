@@ -211,3 +211,54 @@ describe('room for the bars at the edges', () => {
     padded.destroy();
   });
 });
+
+describe('stacked areas', () => {
+  function stacked(curve: 'smooth' | 'step') {
+    const host = mount(WIDTH, HEIGHT);
+    const chart = new Chart(host, {
+      animation: false,
+      height: HEIGHT,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+      series: [
+        { id: 'a', type: 'area', stack: 's', curve, data: [1, 5, 2, 8, 3, 7] },
+        { id: 'b', type: 'area', stack: 's', curve, data: [2, 1, 4, 1, 5, 2] },
+      ],
+    });
+    drawOnce(chart);
+    return chart;
+  }
+
+  it('trace the lower edge with the same curve as the top', () => {
+    // Straight chords under a smooth top left slivers of background between
+    // the layers wherever a chord ran above the curve.
+    const chart = stacked('smooth');
+    const segments = contextOf(chart.canvas).calls('bezierCurveTo').map((op) => op.args as number[]);
+    // Each series: five segments along its top, five back along its base.
+    expect(segments).toHaveLength(20);
+    // The base of b is the top of a walked backwards: the same segments with
+    // their control points swapped.
+    const aTop = segments.slice(0, 5);
+    const bBase = segments.slice(15, 20);
+    for (let k = 0; k < 5; k++) {
+      const forward = aTop[4 - k];
+      const back = bBase[k];
+      expect(back[0]).toBeCloseTo(forward[2], 6);
+      expect(back[1]).toBeCloseTo(forward[3], 6);
+      expect(back[2]).toBeCloseTo(forward[0], 6);
+      expect(back[3]).toBeCloseTo(forward[1], 6);
+    }
+    chart.destroy();
+  });
+
+  it('retrace a stepped top corner for corner', () => {
+    const chart = stacked('step');
+    const vertices = contextOf(chart.canvas)
+      .ops.filter((op) => op.name === 'moveTo' || op.name === 'lineTo')
+      .map((op) => [op.args[0], op.args[1]] as [number, number]);
+    // Eleven vertices per edge: a start and two per step. Top of a, base of
+    // a, top of b, base of b.
+    expect(vertices).toHaveLength(44);
+    expect(vertices.slice(33, 44)).toEqual(vertices.slice(0, 11).reverse());
+    chart.destroy();
+  });
+});

@@ -106,32 +106,53 @@ function project(ctx: DrawContext, series: SeriesState, run: readonly number[], 
   return out;
 }
 
+/**
+ * Appends `points` to the current path.
+ *
+ * `reverse` walks the buffer backwards and continues the path rather than
+ * starting one: the lower edge of a stacked area, which is the upper edge of
+ * the layer below drawn back to the start. It follows the same curve. Traced
+ * as straight chords under a smooth or stepped top, the base left slivers of
+ * background between the layers wherever a chord ran above the curve.
+ */
 function tracePath(r: Renderer, points: readonly number[], curve: Curve, reverse = false): void {
   const ctx = r.ctx;
   const n = points.length;
   if (n < 2) return;
+  let buffer = points;
   if (reverse) {
-    for (let i = n - 2; i >= 0; i -= 2) ctx.lineTo(points[i], points[i + 1]);
-    return;
+    const flipped = new Array<number>(n);
+    for (let i = 0; i < n; i += 2) {
+      flipped[i] = points[n - 2 - i];
+      flipped[i + 1] = points[n - 1 - i];
+    }
+    buffer = flipped;
+    ctx.lineTo(buffer[0], buffer[1]);
+  } else {
+    ctx.moveTo(buffer[0], buffer[1]);
   }
-  ctx.moveTo(points[0], points[1]);
   if (curve === 'step') {
+    // A step holds its value until the next sample: across, then up or down.
+    // Walked backwards the same corner is reached the other way round.
     for (let i = 2; i < n; i += 2) {
-      ctx.lineTo(points[i], points[i - 1]);
-      ctx.lineTo(points[i], points[i + 1]);
+      if (reverse) ctx.lineTo(buffer[i - 2], buffer[i + 1]);
+      else ctx.lineTo(buffer[i], buffer[i - 1]);
+      ctx.lineTo(buffer[i], buffer[i + 1]);
     }
     return;
   }
   if (curve === 'smooth') {
+    // The control points are symmetric in the neighbours, so the reversed
+    // walk retraces the very curve the forward one drew.
     for (let i = 0; i + 3 < n; i += 2) {
-      const x0 = i > 0 ? points[i - 2] : points[i];
-      const y0 = i > 0 ? points[i - 1] : points[i + 1];
-      const x1 = points[i];
-      const y1 = points[i + 1];
-      const x2 = points[i + 2];
-      const y2 = points[i + 3];
-      const x3 = i + 5 < n ? points[i + 4] : x2;
-      const y3 = i + 5 < n ? points[i + 5] : y2;
+      const x0 = i > 0 ? buffer[i - 2] : buffer[i];
+      const y0 = i > 0 ? buffer[i - 1] : buffer[i + 1];
+      const x1 = buffer[i];
+      const y1 = buffer[i + 1];
+      const x2 = buffer[i + 2];
+      const y2 = buffer[i + 3];
+      const x3 = i + 5 < n ? buffer[i + 4] : x2;
+      const y3 = i + 5 < n ? buffer[i + 5] : y2;
       ctx.bezierCurveTo(
         x1 + (x2 - x0) / 6,
         y1 + (y2 - y0) / 6,
@@ -143,7 +164,7 @@ function tracePath(r: Renderer, points: readonly number[], curve: Curve, reverse
     }
     return;
   }
-  for (let i = 2; i < n; i += 2) ctx.lineTo(points[i], points[i + 1]);
+  for (let i = 2; i < n; i += 2) ctx.lineTo(buffer[i], buffer[i + 1]);
 }
 
 function topValue(ctx: DrawContext, series: SeriesState): ValueAt {

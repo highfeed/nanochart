@@ -2,13 +2,53 @@
 
 ## Unreleased
 
+### Added
+
+- `nanochart.js/core`, `nanochart.js/series` and `nanochart.js/plugins`: the
+  chart, the renderers and the plugins as entries that register nothing, for
+  a page that wants only the series types it draws. The package entry still
+  registers all six, which is why every import from it carries them; `./core`
+  used to point at the chart module alone.
+- `tooltip({ formatTotal })`. Without it the total row goes through `format`,
+  given the sum and the series under the pointer.
+- `onChart` in the Svelte action's options. The action was the one wrapper
+  with no way to reach the chart.
+
 ### Changed
 
 - A container's padding no longer counts as room for an unpinned chart: the
   canvas takes the container's content height, which is the space it can
   occupy.
+- The framework wrappers rebuild the chart when an option it reads once
+  changes — `x`, `y`, `y2`, `plugins`, `padding`, `animation`, `locale`,
+  `timeZone`, `minSpan`, `ariaLabel` — where they used to ignore the change.
+  React's `onChart`, Vue's `ready` and the Svelte action's `onChart` report
+  the new chart. A plugin is known by its name, so a list rebuilt from the
+  same plugins on every render is the same list. A series is patched with the
+  fields that changed, so a colour change no longer parses its samples again.
 
 ### Fixed
+
+- The tooltip's total row ignoring `format`: "Profit $820, Loss $0, Net 820".
+- Stacked areas tracing their lower edge with straight chords whatever the
+  `curve`, which left slivers of background between smooth or stepped layers
+  wherever a chord ran above the curve. The base follows the curve of the top
+  it retraces.
+- The scrubber's preview drawing a log axis on a linear scale, with everything
+  below the top decade flattened along the bottom.
+- Day ticks drifting an hour off midnight after a DST change, and the day
+  marker on an intraday axis disappearing past it. Days and longer step from
+  one midnight to the next; a sub-day step re-anchors on the midnight it
+  crosses. `Formats.startOfDay` remembers its answers, since a time axis asks
+  for the same midnights on every frame.
+- A series appended to in place — a Vue array pushed to — not reaching the
+  chart through a wrapper, because `data` was compared by identity alone. Its
+  length counts too now.
+- The renderer's font cache going stale across `save()` and `restore()`. A raw
+  restore put the old font back without the cache knowing, and the next text
+  asking for the new one was drawn in the old. The renderer's own `save()` and
+  `restore()` keep the record in step, it starts every frame afresh, and the
+  pie draws its labels through them.
 
 - The framework wrappers building a chart with no series types registered.
   `nanochart.js/react`, `/vue` and `/svelte` load the shared controller and

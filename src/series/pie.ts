@@ -61,7 +61,9 @@ export const pie: SeriesRenderer = {
     const oy = hovered ? Math.sin(mid) * HOVER_SHIFT : 0;
     const c = ctx.r.ctx;
 
-    c.save();
+    // The renderer's save and restore, not the context's: the label below
+    // goes through the renderer's font cache, which has to see the restore.
+    ctx.r.save();
     c.beginPath();
     c.arc(cx + ox, cy + oy, radius, slice.start, slice.end);
     if (inner > 0) c.arc(cx + ox, cy + oy, inner, slice.end, slice.start, true);
@@ -80,7 +82,7 @@ export const pie: SeriesRenderer = {
         baseline: 'middle',
       });
     }
-    c.restore();
+    ctx.r.restore();
   },
 
   hit(ctx, series, px, py) {

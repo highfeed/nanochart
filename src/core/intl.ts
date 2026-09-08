@@ -68,6 +68,14 @@ export function createFormats(locale?: string, timeZone?: string): Formats {
   };
 
   let numbers: Intl.NumberFormat | undefined;
+  /**
+   * Midnights by the instant they were asked for. A time axis asks for the
+   * same ones every frame — its ticks sit on midnights, and stepping from one
+   * to the next asks where the next one is — and each answer costs three
+   * `formatToParts`. Bounded, and cleared rather than evicted: a chart asks
+   * about a few dozen instants at a time.
+   */
+  const midnights = new Map<number, number>();
 
   /** Wall-clock fields in the configured zone. */
   const fields = (timestamp: number): number[] => {
@@ -116,8 +124,14 @@ export function createFormats(locale?: string, timeZone?: string): Formats {
       return numbers.format(value);
     },
     startOfDay(t) {
-      const [y, m, d] = fields(t);
-      return fromFields(y, m, d);
+      let midnight = midnights.get(t);
+      if (midnight === undefined) {
+        const [y, m, d] = fields(t);
+        midnight = fromFields(y, m, d);
+        if (midnights.size >= 512) midnights.clear();
+        midnights.set(t, midnight);
+      }
+      return midnight;
     },
     startOfMonth(t) {
       const [y, m] = fields(t);

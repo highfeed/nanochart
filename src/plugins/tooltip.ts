@@ -12,6 +12,11 @@ export interface TooltipOptions {
   /** Adds a summary row with the sum of all visible series. */
   total?: boolean;
   totalLabel?: string;
+  /**
+   * Formats the total row. Defaults to `format`, given the sum and the series
+   * under the pointer, so a `$` on every row is a `$` on the total too.
+   */
+  formatTotal?: (total: number, index: number) => string;
   crosshair?: boolean;
   points?: boolean;
 }
@@ -91,7 +96,11 @@ export function tooltip(options: TooltipOptions = {}): Plugin {
       if (options.total) {
         rows.push({
           label: options.totalLabel ?? 'All',
-          value: chart.formats.number(total),
+          value: options.formatTotal
+            ? options.formatTotal(total, index)
+            : options.format
+              ? options.format(total, reference, index)
+              : chart.formats.number(total),
           note: '',
           color: ctx.color('tooltipText'),
         });
