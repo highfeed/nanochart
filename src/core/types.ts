@@ -110,13 +110,22 @@ export interface AxisOptions {
   type?: AxisType;
   /** Labels for a `category` axis, indexed by sample position. */
   categories?: readonly string[];
-  /** Hard domain bounds; omit for auto. */
+  /**
+   * Hard domain bounds; omit for auto. On `x` they replace the extent of the
+   * data, headroom and all, and `range` is a fraction of them.
+   */
   min?: number;
   max?: number;
-  /** Approximate tick count. */
+  /**
+   * Approximate tick count. On `x` it replaces the count `xAxis({ spacing })`
+   * derives from the width.
+   */
   ticks?: number;
   format?: (value: number, index: number) => string;
-  /** Always include zero in the domain. Defaults to true for bars and areas. */
+  /**
+   * Always include zero in the domain. Defaults to true for bars and areas on
+   * a y axis, and to false on `x`.
+   */
   zero?: boolean;
   /** Extra headroom as a fraction of the domain span. */
   padding?: number;
@@ -258,14 +267,27 @@ export interface Plugin {
   destroy?(chart: Chart): void;
 }
 
-export interface ChartEvents {
-  hover: { index: number; seriesId: string | null };
+/** The point under the pointer, or the one that was clicked. */
+export interface PointEvent {
+  /** Position of the sample within `reference`; -1 when there is none. */
+  index: number;
   /**
-   * A click on a point, or on a pie slice, which has no index and reports the
-   * series alone. A press a plugin dragged — a pan, a scrubber handle — is not
-   * a click.
+   * The series `index` counts into: the one under the pointer, which on
+   * series with their own x grids is not always the same one, so an index
+   * alone does not say which sample it names.
    */
-  select: { index: number; seriesId: string | null };
+  reference: string | null;
+  /** A pie slice, which has no index and names its series here instead. */
+  seriesId: string | null;
+}
+
+export interface ChartEvents {
+  hover: PointEvent;
+  /**
+   * A click on a point, or on a pie slice. A press a plugin dragged — a pan, a
+   * scrubber handle — is not a click.
+   */
+  select: PointEvent;
   rangechange: { from: number; to: number };
   toggle: { id: string; visible: boolean };
   themechange: { theme: Theme };

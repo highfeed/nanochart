@@ -140,7 +140,10 @@ export function createFormats(locale?: string, timeZone?: string): Formats {
     monthOf: (t) => fields(t)[1],
     addMonths(t, months) {
       const [y, m, d, h, min] = fields(t);
-      return fromFields(y, m + months, d, h, min);
+      // Held inside the month it lands in: 31 January plus a month is the last
+      // day of February, where the raw arithmetic ran over into 3 March.
+      const last = new Date(Date.UTC(y, m + months + 1, 0)).getUTCDate();
+      return fromFields(y, m + months, Math.min(d, last), h, min);
     },
   };
 }

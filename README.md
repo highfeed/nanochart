@@ -2,12 +2,12 @@
 
 [![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
-[![gzip](https://img.shields.io/badge/gzip-15.7%20kB-brightgreen.svg)](#performance-notes)
+[![gzip](https://img.shields.io/badge/gzip-16.1%20kB-brightgreen.svg)](#performance-notes)
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **15.7 kB gzip** for a line chart with axes and a tooltip, 13.6 kB through the
-  [lean entries](#lean-imports); 19.3 kB for all six series types plus every
+- **16.1 kB gzip** for a line chart with axes and a tooltip, 13.9 kB through the
+  [lean entries](#lean-imports); 19.7 kB for all six series types plus every
   plugin. Unused plugins tree-shake away, and the lean entries leave out the
   series types the page does not register
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
@@ -72,7 +72,10 @@ const chart = new Chart('#followers', {
 `null`, `undefined` and any non-finite number mark a gap: the line breaks there,
 the fill splits, and the point drops out of the tooltip and the axis domain. A
 bare `null` carries no x of its own, so it takes one from the samples it sits
-between — on a regular grid, the slot that is missing.
+between — on a regular grid, the slot that is missing. Hovering a gap reports
+nothing — `index: -1`, no crosshair, no card — until the pointer reaches a sample
+with a value, so a lone series with an outage has a dead zone the width of it;
+a second series with a value there is hovered instead.
 
 ## Series types
 
@@ -83,7 +86,12 @@ x: { type: 'time' }                              // timestamps
 x: { type: 'category', categories: ['Mon', ...] } // one slot per sample
 y: { type: 'log' }                                // orders of magnitude
 y: { type: 'linear', min: 0, max: 100 }
+x: { min: 0, max: 10, ticks: 4 }                  // bounds and a tick count on x too
 ```
+
+`min`, `max`, `zero` and `ticks` apply to `x` as well: a pinned bound is where the
+axis ends, headroom and all, and `range` is a fraction of the pinned extent;
+`ticks` on `x` replaces the count `xAxis({ spacing })` derives from the width.
 
 ```js
 new Chart('#chart', { locale: 'de-DE', timeZone: 'UTC', ... });
@@ -133,6 +141,7 @@ yAxis({ prefix: '$' });                       // 67.5K -> $67.5K, -500 -> -$500
 yAxis({ axis: 'y2', tinted: true });          // right axis, tinted with its series color
 yAxis({ labelPosition: 'inside', color: '#fff' }); // labels on top of filled areas
 yAxis({ placement: 'outside' });              // gutter beside the plot, sized to fit
+yAxis({ backdrop: false });                   // no wash of background behind overlaid labels
 xAxis({ height: 26, spacing: 78, suffix: '%' });
 tooltip({ total: true, format: (value, series, index) => `$${value}` });
 tooltip({ total: true, formatTotal: (total, index) => `${total} in all` }); // the total row takes `format` otherwise
@@ -148,9 +157,12 @@ Tick labels pick their own unit and precision from the axis step, so `$67.5K` an
 `$68K` never collapse into the same label. Two y axes are automatically put on the
 same grid lines.
 
-By default the y axis draws over the plot, Telegram style. `placement: 'outside'`
-reserves a gutter instead, measured against the widest label the current domain
-produces, which is what wide labels and conventional layouts want.
+By default the y axis draws over the plot, Telegram style, with a wash of the
+background behind each label so a muted label still reads on top of the first bar
+or a filled area; `backdrop: false` leaves the labels bare, and so does a label
+`color` of your own. `placement: 'outside'` reserves a gutter instead, measured
+against the widest label the current domain produces, which is what wide labels
+and conventional layouts want.
 
 `zoom` anchors on the value under the cursor, so the point you are pointing at
 stays put. It captures the pointer only once a drag actually moves, so a click
@@ -194,6 +206,9 @@ registerSeries({
   },
 });
 ```
+
+`readableOn(fill)` is black or white, whichever reads on a fill; the pie labels
+its slices with it.
 
 Samples are stored columnar — `series.data` holds parallel `Float64Array`s
 (`x`, `y`, and `open`/`high`/`low`/`close` for OHLC input) rather than one
@@ -295,9 +310,12 @@ chart.destroy()
 chart.on('hover' | 'select' | 'rangechange' | 'toggle' | 'themechange', handler)
 ```
 
-`select` is a click: the point under the pointer, or for a pie the slice, as
-`{ index: -1, seriesId }`. A press that a plugin dragged — a pan, a scrubber
-handle — is not one, and neither is a touch the browser took for scrolling.
+`hover` and `select` report `{ index, reference, seriesId }`: `index` counts into
+the series named by `reference` — the one under the pointer, which on series with
+their own x grids is not always the same one — and a pie slice, which has no
+index, names its series as `seriesId`. `select` is a click: a press that a plugin
+dragged — a pan, a scrubber handle — is not one, and neither is a touch the
+browser took for scrolling.
 
 Without `height` the chart takes the content height of its container, which
 therefore needs a height of its own. A container sized by its content would only

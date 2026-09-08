@@ -218,7 +218,7 @@ describe('keyboard', () => {
     const seen: unknown[] = [];
     chart.on('hover', (e) => seen.push(e));
     key(chart, 'ArrowRight');
-    expect(seen).toEqual([{ index: 0, seriesId: null }]);
+    expect(seen).toEqual([{ index: 0, reference: 'a', seriesId: null }]);
     chart.destroy();
   });
 

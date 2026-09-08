@@ -286,6 +286,9 @@ export class Chart {
 
     if (patch.data !== undefined) {
       series.data = normalizeData(options.data);
+      // Shorter data can leave the hover past its end, as a rebuilt list can;
+      // a listener reading the column by that index was handed undefined.
+      this.retargetHover();
       this.updateExtent();
     }
     if (patch.name !== undefined) series.name = options.name ?? id;
@@ -526,17 +529,19 @@ export class Chart {
   private draw(now: number): void {
     const { renderer } = this;
     if (renderer.width <= 0 || renderer.height <= 0) return;
-    if (this.needsLayout) this.layout();
-
-    renderer.begin(this.color('background', now));
-
     const [e0, e1] = this.xExtent;
     const span = e1 - e0 || 1;
     const from = e0 + this.rangeFrom.at(now) * span;
     const to = e0 + this.rangeTo.at(now) * span;
-    this.xScale = this.buildScale(this.xAxis, from, to, this.plot.x, this.plot.x + this.plot.w);
     this.stacks = buildStacks(this.series, (s) => s.alpha.at(now));
+    // The domains depend on the window and not on the plot, so they are
+    // settled before layout: a plugin that sizes itself to the tick labels
+    // then measures on the opening frame rather than the one after it.
     this.updateDomains(now, from, to);
+    if (this.needsLayout) this.layout();
+
+    renderer.begin(this.color('background', now));
+    this.xScale = this.buildScale(this.xAxis, from, to, this.plot.x, this.plot.x + this.plot.w);
 
     for (const axis of AXES) {
       const domain = this.domains[axis];
@@ -589,28 +594,36 @@ export class Chart {
       if (data.x[0] < min) min = data.x[0];
       if (data.x[data.length - 1] > max) max = data.x[data.length - 1];
     }
-    if (!Number.isFinite(min) || !Number.isFinite(max)) {
-      this.xExtent = [0, 1];
-      return;
+    const options = this.xAxis;
+    if (options.zero && Number.isFinite(min)) {
+      if (min > 0) min = 0;
+      if (max < 0) max = 0;
     }
-    if (max <= min) {
+    let extent: [number, number];
+    if (!Number.isFinite(min) || !Number.isFinite(max)) {
+      extent = [0, 1];
+    } else if (max <= min) {
       // One sample, or many sharing an x. Pad around it rather than replacing
       // it, or the point would be scaled off screen.
       const pad = Math.abs(min) > 0 ? Math.abs(min) * 0.05 : 0.5;
-      this.xExtent = [min - pad, min + pad];
-      return;
-    }
-    if (this.xAxis.type === 'category') {
+      extent = [min - pad, min + pad];
+    } else if (options.type === 'category') {
       // One slot per sample, so the first and last need half a slot each.
       const slot = this.categorySlot(min, max);
-      this.xExtent = [min - slot / 2, max + slot / 2];
-      return;
+      extent = [min - slot / 2, max + slot / 2];
+    } else {
+      // Headroom keeps edge bars and dots from being cut in half. Bars ask for
+      // it themselves; `padding` is for everything else, and wins where it is
+      // the larger of the two.
+      const headroom = Math.max((options.padding ?? 0) * (max - min), this.slotHeadroom());
+      extent = [min - headroom, max + headroom];
     }
-    // Headroom keeps edge bars and dots from being cut in half. Bars ask for
-    // it themselves; `padding` is for everything else, and wins where it is
-    // the larger of the two.
-    const headroom = Math.max((this.xAxis.padding ?? 0) * (max - min), this.slotHeadroom());
-    this.xExtent = [min - headroom, max + headroom];
+    // A pinned bound is where the axis ends, headroom and all; the type
+    // offered `min` and `max` on `x` and the extent went on reading the data.
+    if (options.min !== undefined) extent[0] = options.min;
+    if (options.max !== undefined) extent[1] = options.max;
+    if (extent[1] <= extent[0]) extent[1] = extent[0] + 1;
+    this.xExtent = extent;
   }
 
   /**
@@ -784,15 +797,14 @@ export class Chart {
 
   /**
    * A plugin that reserves space for tick labels — a y axis placed outside the
-   * plot — cannot measure itself until the ticks exist, and the ticks are only
-   * known after layout. Re-running layout when the set changes closes that
-   * loop; it settles in a frame, because tick counts do not depend on the
-   * gutter they produce.
+   * plot — measures itself against the set, so a new set is a new layout. The
+   * frame that changes the set is the frame that lays out for it: `draw`
+   * settles the domains before it lays out, and tick counts do not depend on
+   * the gutter they produce, so nothing is left over for a frame after.
    */
   private setTicks(domain: DomainState, ticks: number[]): void {
     domain.ticks = ticks;
     this.needsLayout = true;
-    this.invalidate();
   }
 
   private isAnimating(now: number): boolean {
@@ -866,7 +878,11 @@ export class Chart {
     // click, however precisely it is released. A slice has no index, so a pie
     // reports the series alone.
     if (state.inside && !this.dragged && (this.hoverIndex >= 0 || this.hoverSeriesId !== null)) {
-      this.emit('select', { index: this.hoverIndex, seriesId: this.hoverSeriesId });
+      this.emit('select', {
+        index: this.hoverIndex,
+        reference: this.hoverReference?.id ?? null,
+        seriesId: this.hoverSeriesId,
+      });
     }
   };
 
@@ -961,7 +977,7 @@ export class Chart {
     this.hoverIndex = index;
     this.hoverSeriesId = seriesId;
     this.hoverReference = next;
-    this.emit('hover', { index, seriesId });
+    this.emit('hover', { index, reference: next?.id ?? null, seriesId });
   }
 
   /**

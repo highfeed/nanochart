@@ -1,9 +1,14 @@
-import { beforeAll, describe, expect, it } from 'vitest';
-import { contextOf, drawOnce, installCanvas, mount } from './helpers/dom.js';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { contextOf, drawOnce, installCanvas, mount, useClock } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import '../src/index.js';
 
 beforeAll(installCanvas);
+let clock: ReturnType<typeof useClock> | undefined;
+afterEach(() => {
+  clock?.restore();
+  clock = undefined;
+});
 
 const WIDTH = 600;
 const HEIGHT = 300;
@@ -127,6 +132,35 @@ describe('candlestick', () => {
 });
 
 describe('pie', () => {
+  /** Every label of the last frame with the colour it was drawn in. */
+  function labels(chart: Chart): { text: string; color: string }[] {
+    const out: { text: string; color: string }[] = [];
+    let color = '';
+    for (const op of contextOf(chart.canvas).ops) {
+      if (op.name === 'set:fillStyle') color = String(op.args[0]);
+      else if (op.name === 'fillText') out.push({ text: String(op.args[0]), color });
+    }
+    return out;
+  }
+
+  it('labels a slice in whichever of white and dark reads on its fill', () => {
+    // "12%" in white on the yellow of the palette was hard to read.
+    const host = mount(WIDTH, HEIGHT);
+    const chart = new Chart(host, {
+      animation: false,
+      height: HEIGHT,
+      series: [
+        { id: 'sun', type: 'pie', color: '#f5bd25', data: [3] },
+        { id: 'sea', type: 'pie', color: '#3e9ff2', data: [2] },
+      ],
+    });
+    drawOnce(chart);
+    const drawn = labels(chart);
+    expect(drawn.find((label) => label.text === '60%')?.color).toBe('rgba(0,0,0,0.8)');
+    expect(drawn.find((label) => label.text === '40%')?.color).toBe('#ffffff');
+    chart.destroy();
+  });
+
   it('is excluded from the cartesian domain', () => {
     const host = mount(WIDTH, HEIGHT);
     const chart = new Chart(host, {
@@ -259,6 +293,81 @@ describe('stacked areas', () => {
     // a, top of b, base of b.
     expect(vertices).toHaveLength(44);
     expect(vertices.slice(33, 44)).toEqual(vertices.slice(0, 11).reverse());
+    chart.destroy();
+  });
+});
+
+describe('grouped bars while a series fades', () => {
+  /** Widths of the first series' bars in the last frame: the rects before the first fill, the clip box aside. */
+  function widthsOfFirst(chart: Chart): number[] {
+    const ops = contextOf(chart.canvas).ops;
+    const out: number[] = [];
+    for (let i = 0; i < ops.length; i++) {
+      if (ops[i].name === 'fill') break;
+      if (ops[i].name !== 'rect' || ops[i + 1]?.name === 'clip') continue;
+      out.push(ops[i].args[2] as number);
+    }
+    return out;
+  }
+
+  it('widens the neighbours with the fade rather than at the toggle', () => {
+    clock = useClock();
+    const host = mount(WIDTH, HEIGHT);
+    const chart = new Chart(host, {
+      height: HEIGHT,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+      series: [
+        { id: 'a', type: 'bar', data: [1, 2, 3, 4] },
+        { id: 'b', type: 'bar', data: [2, 3, 4, 5] },
+      ],
+    });
+    clock.advance(1000);
+    drawOnce(chart);
+    const shared = widthsOfFirst(chart)[0];
+
+    chart.toggle('b');
+    clock.advance(chart.duration / 2);
+    drawOnce(chart);
+    const midway = widthsOfFirst(chart)[0];
+
+    clock.advance(chart.duration);
+    drawOnce(chart);
+    const alone = widthsOfFirst(chart)[0];
+
+    // Slots were split by `visible`, so the moment `b` was toggled `a` jumped
+    // to the whole width while `b` was still on screen fading out.
+    expect(alone).toBeGreaterThan(shared * 1.9);
+    expect(midway).toBeGreaterThan(shared + 10);
+    expect(midway).toBeLessThan(alone - 5);
+    chart.destroy();
+  });
+
+  it('shares the slot again as a series fades back in', () => {
+    clock = useClock();
+    const host = mount(WIDTH, HEIGHT);
+    const chart = new Chart(host, {
+      height: HEIGHT,
+      padding: { top: 0, right: 0, bottom: 0, left: 0 },
+      series: [
+        { id: 'a', type: 'bar', data: [1, 2, 3, 4] },
+        { id: 'b', type: 'bar', data: [2, 3, 4, 5], visible: false },
+      ],
+    });
+    clock.advance(1000);
+    drawOnce(chart);
+    const alone = widthsOfFirst(chart)[0];
+    chart.toggle('b');
+    clock.advance(chart.duration / 2);
+    drawOnce(chart);
+    const midway = widthsOfFirst(chart)[0];
+    clock.advance(chart.duration);
+    drawOnce(chart);
+    const shared = widthsOfFirst(chart)[0];
+    // Split by `visible`, `a` dropped to half width the moment `b` was
+    // toggled, with `b` still all but invisible beside it.
+    expect(shared).toBeLessThan(alone * 0.6);
+    expect(midway).toBeLessThan(alone - 5);
+    expect(midway).toBeGreaterThan(shared + 1);
     chart.destroy();
   });
 });

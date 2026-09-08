@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { drawOnce, installCanvas, mount } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
+import type { PointEvent } from '../src/core/types.js';
 import { tooltip } from '../src/index.js';
 
 beforeAll(installCanvas);
@@ -106,7 +107,7 @@ describe('the hover event', () => {
 
   it('fires when only the reference series changes', () => {
     const chart = farApart();
-    const seen: { index: number; seriesId: string | null }[] = [];
+    const seen: PointEvent[] = [];
     chart.on('hover', (event) => seen.push(event));
 
     move(chart, 0.05);
@@ -117,6 +118,22 @@ describe('the hover event', () => {
     // Both samples are index 0, so deduplicating on the index alone reported
     // one move where the reader made two.
     expect(seen).toHaveLength(2);
+    chart.destroy();
+  });
+
+  it('names the series the index counts into', () => {
+    // Both events say index 0; without the reference a listener had to reach
+    // into `chart.hoverReference` to learn which series that was.
+    const chart = farApart();
+    const seen: PointEvent[] = [];
+    chart.on('hover', (event) => seen.push(event));
+    move(chart, 0.05);
+    move(chart, 0.95);
+    (chart as never as { updateHover(s: unknown): void }).updateHover({
+      type: 'leave', x: -1, y: -1, inside: false, originalEvent: null,
+    });
+    expect(seen.map((event) => event.reference)).toEqual(['left', 'right', null]);
+    expect(seen.map((event) => event.index)).toEqual([0, 0, -1]);
     chart.destroy();
   });
 
@@ -207,6 +224,31 @@ describe('a hover that outlives its data', () => {
     expect(chart.hoverReference).toBeNull();
     // Nothing left from the discarded series is on screen.
     expect(drawOnce(chart).texts().join(' ')).not.toContain('940');
+    chart.destroy();
+  });
+
+  it('drops a hover that shorter data, patched in place, cannot answer', () => {
+    const chart = chartOf(Array.from({ length: 100 }, (_, i) => i * 10));
+    move(chart, 0.95);
+    const seen: PointEvent[] = [];
+    chart.on('hover', (event) => seen.push(event));
+
+    // `updateSeries` keeps the state object, so nothing re-pointed the hover
+    // and its index stayed past the end of the data it now has.
+    chart.updateSeries('a', { data: [1, 2, 3] });
+    expect(chart.hoverIndex).toBe(-1);
+    expect(chart.hoverReference).toBeNull();
+    expect(seen).toEqual([{ index: -1, reference: null, seriesId: null }]);
+    chart.destroy();
+  });
+
+  it('keeps a hover that patched data can still answer', () => {
+    const chart = chartOf(Array.from({ length: 100 }, (_, i) => i * 10));
+    move(chart, 0.5);
+    const index = chart.hoverIndex;
+    chart.updateSeries('a', { data: Array.from({ length: 120 }, (_, i) => i * 10 + 1) });
+    expect(chart.hoverIndex).toBe(index);
+    expect(chart.hoverReference).toBe(chart.seriesById('a'));
     chart.destroy();
   });
 

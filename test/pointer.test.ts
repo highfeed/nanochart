@@ -2,7 +2,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { drawOnce, installCanvas, layout, mount, pointer } from './helpers/dom.js';
 import { Chart } from '../src/core/chart.js';
 import { legend, tooltip, zoom } from '../src/index.js';
-import type { Plugin } from '../src/core/types.js';
+import type { Plugin, PointEvent } from '../src/core/types.js';
 
 beforeAll(installCanvas);
 
@@ -23,7 +23,7 @@ function lineChart(plugins: Plugin[] = [tooltip()]) {
 }
 
 function selections(chart: Chart) {
-  const seen: { index: number; seriesId: string | null }[] = [];
+  const seen: PointEvent[] = [];
   chart.on('select', (event) => seen.push(event));
   return seen;
 }
@@ -39,7 +39,7 @@ describe('select', () => {
     const seen = selections(chart);
     click(chart, 300, 150);
     expect(chart.hoverIndex).toBeGreaterThanOrEqual(0);
-    expect(seen).toEqual([{ index: chart.hoverIndex, seriesId: null }]);
+    expect(seen).toEqual([{ index: chart.hoverIndex, reference: 'a', seriesId: null }]);
     chart.destroy();
   });
 
@@ -80,7 +80,7 @@ describe('select', () => {
     const seen = selections(chart);
     // Slices start at the top and run clockwise, so the first one is the right half.
     click(chart, 380, 150);
-    expect(seen).toEqual([{ index: -1, seriesId: 'apples' }]);
+    expect(seen).toEqual([{ index: -1, reference: null, seriesId: 'apples' }]);
     chart.destroy();
   });
 

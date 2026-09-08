@@ -13,6 +13,18 @@
   given the sum and the series under the pointer.
 - `onChart` in the Svelte action's options. The action was the one wrapper
   with no way to reach the chart.
+- `yAxis({ backdrop })`: a wash of the background behind each overlaid label,
+  so a muted label reads on top of the first bar or a filled area. On unless
+  the labels have a `color` of their own, which was chosen against the fill;
+  an `outside` axis has nothing behind its labels.
+- `reference` on `hover` and `select`: the id of the series `index` counts
+  into. Two series on their own x grids both number their first sample 0, so
+  an index alone left a listener reaching into `chart.hoverReference`.
+- `min`, `max`, `zero` and `ticks` on the `x` axis options, which the type
+  offered and the extent ignored. A pinned bound is where the axis ends,
+  headroom and all; `ticks` replaces the count `xAxis({ spacing })` derives
+  from the width.
+- `readableOn(color)`: black or white, whichever reads on a fill.
 
 ### Changed
 
@@ -26,6 +38,9 @@
   the new chart. A plugin is known by its name, so a list rebuilt from the
   same plugins on every render is the same list. A series is patched with the
   fields that changed, so a colour change no longer parses its samples again.
+- A pie labels a slice in white or in dark, whichever reads on its fill; the
+  label was always white, and "12%" on the yellow of either palette was hard
+  to read.
 
 ### Fixed
 
@@ -49,6 +64,25 @@
   asking for the new one was drawn in the old. The renderer's own `save()` and
   `restore()` keep the record in step, it starts every frame afresh, and the
   pie draws its labels through them.
+- `yAxis({ placement: 'outside' })` reserving its gutter only from the second
+  frame: the ticks were known only after layout, so the opening frame drew
+  the plot across the whole width with the labels off the canvas, and the
+  next one shifted it right. The domains are settled before layout now, and
+  the frame that changes a tick set is the frame that lays out for it.
+- A change of tick set fading the whole axis rather than the labels that
+  changed. Drawn as two whole sets, one over the other, a label in both was
+  painted twice and read at 75% in the middle of the fade, so the axis took a
+  breath each time a label came into the window. It fades tick by tick.
+- `Formats.addMonths` running past the end of a shorter month: 31 January
+  plus a month was 3 March. It is held inside the month it lands in.
+- `updateSeries` with shorter data leaving the hover past the end of it, so a
+  `hover` listener reading the column by that index was handed undefined.
+- Grouped bars jumping to their new width the moment a series was toggled,
+  while it was still fading beside them. A slot is as wide as its series is
+  opaque, so it closes with the fade and the neighbours widen with it.
+- `formatCompact` past the last unit: 1e18 came out as "1000000T", and a
+  volume in satoshi or wei gets there. It reads "1e18", and tick labels that
+  far out keep their precision from the step as everywhere else.
 
 - The framework wrappers building a chart with no series types registered.
   `nanochart.js/react`, `/vue` and `/svelte` load the shared controller and

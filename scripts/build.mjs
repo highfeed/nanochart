@@ -16,9 +16,9 @@ import { build } from 'esbuild';
  * `LEAN_LIMIT` is the same chart through `/core`, `/series` and `/plugins`,
  * which register nothing and so carry only the series type the page draws.
  */
-const CORE_LIMIT = 15.75 * 1024;
-const FULL_LIMIT = 19.4 * 1024;
-const LEAN_LIMIT = 13.7 * 1024;
+const CORE_LIMIT = 16.15 * 1024;
+const FULL_LIMIT = 19.85 * 1024;
+const LEAN_LIMIT = 14.0 * 1024;
 
 const kb = (value) => `${(value / 1024).toFixed(2)} kB`;
 

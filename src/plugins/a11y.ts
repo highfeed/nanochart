@@ -88,7 +88,7 @@ export function a11y(options: A11yOptions = {}): Plugin {
     chart.pointerX = next < 0 ? -1 : chart.xScale.map(reference.data.x[next]);
     chart.pointerY = chart.plot.y + chart.plot.h / 2;
     chart.pointerInside = next >= 0;
-    chart.emit('hover', { index: next, seriesId: null });
+    chart.emit('hover', { index: next, reference: next < 0 ? null : reference.id, seriesId: null });
     chart.invalidate();
   };
 

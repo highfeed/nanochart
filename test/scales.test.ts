@@ -150,6 +150,53 @@ describe('category axis', () => {
   });
 });
 
+describe('x axis options', () => {
+  function chartWith(x: Record<string, unknown>, plugins: ReturnType<typeof xAxis>[] = []) {
+    const host = mount(600, 300);
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      padding: { left: 0, right: 0, top: 0, bottom: 0 },
+      x,
+      series: [{ id: 'a', type: 'line', data: [[2, 1], [5, 2], [8, 3]] }],
+      plugins,
+    });
+    chart.render();
+    return chart;
+  }
+
+  // `min`, `max`, `zero` and `ticks` are on the type for every axis, and the
+  // x extent went on reading the data alone.
+  it('pins the extent to min and max', () => {
+    const chart = chartWith({ min: 0, max: 10 });
+    expect(chart.xExtent).toEqual([0, 10]);
+    chart.destroy();
+  });
+
+  it('pins one bound and leaves the other to the data', () => {
+    const chart = chartWith({ max: 10 });
+    expect(chart.xExtent).toEqual([2, 10]);
+    chart.destroy();
+  });
+
+  it('pulls the extent to zero', () => {
+    const chart = chartWith({ zero: true });
+    expect(chart.xExtent).toEqual([0, 8]);
+    chart.destroy();
+  });
+
+  it('takes the tick count from the options', () => {
+    const byDefault = chartWith({}, [xAxis()]);
+    const asked = chartWith({ ticks: 2 }, [xAxis()]);
+    const labelsByDefault = drawOnce(byDefault).texts().length;
+    const labelsAsked = drawOnce(asked).texts().length;
+    expect(labelsByDefault).toBeGreaterThan(3);
+    expect(labelsAsked).toBeLessThanOrEqual(3);
+    byDefault.destroy();
+    asked.destroy();
+  });
+});
+
 describe('y axis placement', () => {
   it('overlays the plot by default', () => {
     const host = mount(600, 300);
@@ -176,10 +223,34 @@ describe('y axis placement', () => {
       plugins: [yAxis({ placement: 'outside' })],
     });
     chart.render();
-    chart.render();   // ticks exist now, so layout can size the gutter
     expect(chart.plot.x).toBeGreaterThan(0);
     expect(chart.plot.w).toBeLessThan(600);
     expect(chart.plot.x + chart.plot.w).toBe(600);
+    chart.destroy();
+  });
+
+  it('has the gutter on the opening frame', () => {
+    const host = mount(600, 300);
+    const chart = new Chart(host, {
+      animation: false,
+      height: 300,
+      padding: { left: 0, right: 0, top: 0, bottom: 0 },
+      series: [{ id: 'a', type: 'line', data: [1000, 200000, 3000000] }],
+      plugins: [yAxis({ placement: 'outside' })],
+    });
+    // The constructor's own frame, with no render after it. The ticks used to
+    // be known only after layout, so the first frame drew the plot across the
+    // whole width, its labels off the canvas, and a second frame shifted the
+    // plot right: a visible jump on every load.
+    expect(chart.plot.x).toBeGreaterThan(0);
+    const labels = contextOf(chart.canvas).calls('fillText');
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      expect(label.args[1] as number).toBeGreaterThan(0);
+      expect(label.args[1] as number).toBeLessThanOrEqual(chart.plot.x);
+    }
+    // Nothing left for a frame after: none is scheduled.
+    expect((chart as never as { frameHandle: number }).frameHandle).toBe(0);
     chart.destroy();
   });
 

@@ -46,8 +46,21 @@ describe('createFormats', () => {
 
   it('steps whole calendar months', () => {
     const utc = createFormats('en-GB', 'UTC');
-    expect(utc.addMonths(Date.UTC(2023, 0, 31), 1)).toBe(utc.addMonths(Date.UTC(2023, 0, 31), 1));
+    expect(utc.addMonths(Date.UTC(2023, 0, 15, 15, 30), 1)).toBe(Date.UTC(2023, 1, 15, 15, 30));
     expect(utc.monthOf(utc.addMonths(Date.UTC(2023, 10, 15), 2))).toBe(0);
+  });
+
+  it('holds a step inside the month it lands in', () => {
+    // The raw arithmetic ran 31 January over into 3 March. The old test here
+    // compared the call with itself, and passed.
+    const utc = createFormats('en-GB', 'UTC');
+    expect(utc.addMonths(Date.UTC(2023, 0, 31), 1)).toBe(Date.UTC(2023, 1, 28));
+    expect(utc.addMonths(Date.UTC(2024, 0, 31), 1)).toBe(Date.UTC(2024, 1, 29));
+    expect(utc.addMonths(Date.UTC(2023, 2, 31), -1)).toBe(Date.UTC(2023, 1, 28));
+    expect(utc.addMonths(Date.UTC(2023, 11, 31), 2)).toBe(Date.UTC(2024, 1, 29));
+    // In the configured zone: 31 January 09:00 in Tokyo is midnight UTC.
+    const tokyo = createFormats('en-GB', 'Asia/Tokyo');
+    expect(tokyo.addMonths(Date.UTC(2023, 0, 31), 1)).toBe(Date.UTC(2023, 1, 28));
   });
 
   it('starts the calendar month in the configured zone', () => {

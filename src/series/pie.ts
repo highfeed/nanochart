@@ -1,3 +1,4 @@
+import { readableOn } from '../core/color.js';
 import type { DrawContext, SeriesRenderer, SeriesState } from '../core/types.js';
 
 const START_ANGLE = -Math.PI / 2;
@@ -69,7 +70,8 @@ export const pie: SeriesRenderer = {
     if (inner > 0) c.arc(cx + ox, cy + oy, inner, slice.end, slice.start, true);
     else c.lineTo(cx + ox, cy + oy);
     c.closePath();
-    c.fillStyle = ctx.colorOf(series);
+    const fill = ctx.colorOf(series);
+    c.fillStyle = fill;
     c.fill();
 
     if (!ctx.preview && slice.end - slice.start > 0.22) {
@@ -77,7 +79,8 @@ export const pie: SeriesRenderer = {
       const size = Math.max(11, Math.min(20, radius * 0.16 + slice.share * 26));
       ctx.r.text(`${Math.round(slice.share * 100)}%`, cx + ox + Math.cos(mid) * labelRadius, cy + oy + Math.sin(mid) * labelRadius, {
         font: ctx.font(size, 600),
-        color: '#ffffff',
+        // White on a blue or a red, dark on the yellow of either palette.
+        color: readableOn(fill),
         align: 'center',
         baseline: 'middle',
       });

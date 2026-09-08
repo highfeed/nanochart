@@ -10,20 +10,38 @@ interface BarMetrics {
 /** Fraction of the x step a bar fills when the caller says nothing. */
 const DEFAULT_WIDTH = 0.72;
 
-/** Stacked series share a slot; independent bar series sit side by side. */
+/**
+ * Stacked series share a slot; independent bar series sit side by side.
+ *
+ * A slot is as wide as its series is opaque. Splitting by `visible` had the
+ * neighbours of a toggled series jump to their new width the moment it was
+ * switched, while it was still fading; weighted by alpha, its slot closes as
+ * it fades and the others widen with it, and a series switched on opens its
+ * slot the same way.
+ */
 function barMetrics(ctx: DrawContext, series: SeriesState): BarMetrics {
-  const slots: string[] = [];
+  const keys: string[] = [];
+  const weights: number[] = [];
   for (const other of ctx.chart.series) {
-    if (other.type !== 'bar' || !other.visible) continue;
+    if (other.type !== 'bar') continue;
     const key = other.options.stack ?? other.id;
-    if (!slots.includes(key)) slots.push(key);
+    const alpha = ctx.alphaOf(other);
+    const at = keys.indexOf(key);
+    if (at < 0) {
+      keys.push(key);
+      weights.push(alpha);
+    } else if (alpha > weights[at]) weights[at] = alpha;
   }
-  const key = series.options.stack ?? series.id;
-  const slot = Math.max(0, slots.indexOf(key));
-  const count = Math.max(1, slots.length);
+  const slot = keys.indexOf(series.options.stack ?? series.id);
   const total = stepPixels(ctx, series) * (series.options.barWidth ?? DEFAULT_WIDTH);
-  const width = total / count;
-  return { width, offset: -total / 2 + slot * width };
+  let before = 0;
+  let sum = 0;
+  for (let i = 0; i < weights.length; i++) {
+    sum += weights[i];
+    if (i < slot) before += weights[i];
+  }
+  if (slot < 0 || sum <= 0) return { width: total, offset: -total / 2 };
+  return { width: (total * weights[slot]) / sum, offset: -total / 2 + (total * before) / sum };
 }
 
 export const bar: SeriesRenderer = {
