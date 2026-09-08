@@ -171,6 +171,36 @@ describe('sizing', () => {
     expect(chart.renderer.height).toBe(400);
     chart.destroy();
   });
+
+  // The canvas sits inside the container it measures, so a container sized by
+  // its content reported the canvas back, plus its padding, on every tick.
+  it('does not grow through a container that has no height of its own', () => {
+    const host = mount(600, 0);
+    host.style.padding = '10px';
+    Object.defineProperty(host, 'clientHeight', {
+      configurable: true,
+      get(this: HTMLElement) {
+        const canvas = this.querySelector('canvas');
+        const own = canvas ? Number.parseFloat(canvas.style.height) : Number.NaN;
+        // The padding, plus the canvas at whatever it is — 150 for a bare one.
+        return 20 + (Number.isNaN(own) ? 150 : own);
+      },
+    });
+    const chart = new Chart(host, base({ height: undefined }));
+    expect(chart.renderer.height).toBe(240);
+    chart.resize();
+    chart.resize();
+    expect(chart.renderer.height).toBe(240);
+    chart.destroy();
+  });
+
+  it('leaves the container padding out of the room it takes', () => {
+    const host = mount(600, 320);
+    host.style.padding = '10px';
+    const chart = new Chart(host, base({ height: undefined }));
+    expect(chart.renderer.height).toBe(300);
+    chart.destroy();
+  });
 });
 
 describe('domain', () => {

@@ -2,11 +2,11 @@
 
 [![CI](https://github.com/highfeed/nanochart/actions/workflows/ci.yml/badge.svg)](https://github.com/highfeed/nanochart/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/nanochart.js.svg)](https://www.npmjs.com/package/nanochart.js)
-[![gzip](https://img.shields.io/badge/gzip-15.4%20kB-brightgreen.svg)](#performance-notes)
+[![gzip](https://img.shields.io/badge/gzip-15.5%20kB-brightgreen.svg)](#performance-notes)
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
-- **15.4 kB gzip** for a line chart with axes and a tooltip; 19.0 kB for all six
+- **15.5 kB gzip** for a line chart with axes and a tooltip; 19.1 kB for all six
   series types plus every plugin — unused ones tree-shake away
 - **Zero runtime dependencies**, single `<canvas>`, no DOM overlays
 - **Everything animates**: y-axis rescaling, series toggling, zooming and theme switching
@@ -263,6 +263,14 @@ chart.render()                          // force a synchronous frame
 chart.destroy()
 chart.on('hover' | 'select' | 'rangechange' | 'toggle' | 'themechange', handler)
 ```
+
+`select` is a click: the point under the pointer, or for a pie the slice, as
+`{ index: -1, seriesId }`. A press that a plugin dragged — a pan, a scrubber
+handle — is not one, and neither is a touch the browser took for scrolling.
+
+Without `height` the chart takes the content height of its container, which
+therefore needs a height of its own. A container sized by its content would only
+be measuring the canvas back, so the chart is 240px tall there.
 
 ## Performance notes
 
