@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 — 2026-09-08
+
+Everything a full review of the library turned up, in three parts: the four
+findings that broke a first real page (#65), the seven visible defects (#66)
+and the eleven polish items (#67).
 
 ### Added
 
