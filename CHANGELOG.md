@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.1 — 2026-09-12
+
+No change to the library: the code here is 0.2.0's. npm takes a package's
+readme and `homepage` from the tarball it was published with, so the links to
+the live examples — added after 0.2.0 had gone out — were missing from the
+package page, which is where somebody meeting the library first tends to land.
+This release carries them.
+
+### Changed
+
+- `homepage` is the demo site rather than the readme on GitHub, and the readme
+  leads with a link to it (#71).
+
+Repository-only, in the same window: the size step of `npm run build` failing
+on Windows and three tests that assumed an en-US host locale (#69), the
+workflow actions moved off the deprecated Node 20 runtime (#70), and the
+release job cutting the GitHub release from the tag rather than leaving it to
+be written by hand (#71).
+
 ## 0.2.0 — 2026-09-08
 
 Everything a full review of the library turned up, in three parts: the four
