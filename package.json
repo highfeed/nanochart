@@ -1,6 +1,6 @@
 {
   "name": "nanochart.js",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Tiny zero-dependency canvas charting library with a plugin core and Telegram-style themes",
   "type": "module",
   "license": "MIT",
