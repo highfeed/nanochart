@@ -6,6 +6,10 @@
 
 Tiny canvas charting library with a plugin core and Telegram-style day/night themes.
 
+**[See it running →](https://highfeed.github.io/nanochart/)** — every series type, both
+themes, and an [exchange dashboard](https://highfeed.github.io/nanochart/crypto.html)
+built out of them.
+
 - **16.1 kB gzip** for a line chart with axes and a tooltip, 13.9 kB through the
   [lean entries](#lean-imports); 19.7 kB for all six series types plus every
   plugin. Unused plugins tree-shake away, and the lean entries leave out the
@@ -334,6 +338,11 @@ be measuring the canvas back, so the chart is 240px tall there.
   step of a series is computed once rather than per frame.
 
 ## Examples
+
+Both pages are deployed from `main`, so they are the current build:
+[the basics](https://highfeed.github.io/nanochart/) and
+[the dashboard](https://highfeed.github.io/nanochart/crypto.html). To run them
+against your own changes:
 
 ```bash
 npm install
