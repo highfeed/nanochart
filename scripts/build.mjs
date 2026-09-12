@@ -55,7 +55,11 @@ const dir = mkdtempSync(join(tmpdir(), 'nanochart-size-'));
 // `dist/index.js` and nothing under `src`, so bundled from the sources esbuild
 // takes the entry for side-effect free and drops the series registration it
 // exists for, which understates what a page importing the package gets.
-const dist = (file) => join(process.cwd(), 'dist', file);
+// Forward slashes, because this lands in an import specifier in generated
+// source, where a Windows separator is a string escape and not a path: esbuild
+// was handed `'D:\projects\nanochart\dist\index.js'` and read it as
+// `D:projects` + a newline + `anochartdistindex.js`, which resolves to nothing.
+const dist = (file) => join(process.cwd(), 'dist', file).replaceAll('\\', '/');
 
 /** Size of a bundle built from `source` the way a user's bundler would build it. */
 async function measure(name, source) {
