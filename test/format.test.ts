@@ -66,16 +66,24 @@ describe('compactFormatter', () => {
 });
 
 describe('formatGrouped', () => {
+  // This one formats in the host locale, so the separators are whatever the
+  // machine running the test spells them as: a comma in en-US, a space in
+  // ru-RU, a dot in de-DE. What holds everywhere is the digits and where the
+  // groups fall, and that is what these pin. The separators a named locale
+  // uses belong to `createFormats`, and intl.test.ts covers them there.
   it('groups thousands', () => {
-    expect(formatGrouped(1234567)).toBe('1,234,567');
-    expect(formatGrouped(-1000)).toBe('-1,000');
-    expect(formatGrouped(12.5)).toBe('12.5');
+    expect(formatGrouped(1234567)).toMatch(/^1\D234\D567$/);
+    expect(formatGrouped(-1000)).toMatch(/^\D1\D000$/);
+    expect(formatGrouped(12.5)).toMatch(/^12\D5$/);
   });
 
   // Number#toString switches to exponential notation at 1e21 and the grouping
   // regex then mangles it into a wrong number.
   it('handles numbers past the exponential-notation threshold', () => {
-    expect(formatGrouped(1e21)).toBe('1,000,000,000,000,000,000,000');
+    const text = formatGrouped(1e21);
+    expect(text).not.toMatch(/e/i);
+    // 1 followed by 21 zeros, in whatever digits the host locale counts in.
+    expect(text.match(/\p{Nd}/gu)).toHaveLength(22);
   });
 });
 

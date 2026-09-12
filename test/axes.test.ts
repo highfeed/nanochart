@@ -13,6 +13,10 @@ function timeChart(width = 600) {
   const host = mount(width, 300);
   const chart = new Chart(host, {
     height: 300,
+    // Pinned, because the assertions below read the month names: on a host
+    // locale that is not English the ticks come out as "7 янв." and match
+    // nothing. What the locale itself does to a label is intl.test.ts's.
+    locale: 'en-US',
     x: { type: 'time' },
     series: [{ id: 'a', type: 'line', data: Array.from({ length: 60 }, (_, i) => [i * DAY, i]) }],
     plugins: [yAxis(), xAxis()],
