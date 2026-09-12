@@ -11,7 +11,8 @@ on:
         default: true
 
 permissions:
-  contents: read
+  # `write` for the release the last step cuts; nothing here pushes a commit.
+  contents: write
   # Required for npm Trusted Publishing: npm exchanges this for a short-lived
   # credential, so no token is stored in the repository.
   id-token: write
@@ -53,3 +54,31 @@ jobs:
       - name: Publish
         if: startsWith(github.ref, 'refs/tags/v')
         run: npm publish --provenance --access public
+
+      # Publishing to npm leaves the repository's releases page untouched, so
+      # 0.2.0 went out with the page still offering 0.1.0 as the latest. The
+      # notes are the version's own CHANGELOG section, which is where they
+      # were being written by hand from anyway.
+      - name: Cut the GitHub release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v prefix="## $version" '
+            index($0, prefix) == 1 { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/section.md"
+          # A release with empty notes is worse than a failed publish step: it
+          # is silent, and the tag is already out.
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/section.md"; then
+            echo "CHANGELOG.md has no section for $version" >&2
+            exit 1
+          fi
+          {
+            echo "**[Live demo](https://highfeed.github.io/nanochart/)** · \`npm install nanochart.js\`"
+            cat "$RUNNER_TEMP/section.md"
+          } > "$RUNNER_TEMP/notes.md"
+          gh release create "$GITHUB_REF_NAME" --verify-tag \
+            --title "nanochart $version" --notes-file "$RUNNER_TEMP/notes.md"
