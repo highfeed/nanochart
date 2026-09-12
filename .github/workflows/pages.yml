@@ -18,8 +18,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: npm
@@ -27,10 +27,15 @@ jobs:
       - run: npm run site
       # Never deploy a demo page that throws.
       - run: node scripts/check-examples.mjs
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
+          # v4 of this action stopped packing dotfiles, and `scripts/site.mjs`
+          # writes a `.nojekyll` into the output on purpose: without it Pages
+          # puts the site through Jekyll, which drops the paths it considers
+          # private. Losing the file loses the site's assets, quietly.
+          include-hidden-files: true
 
   deploy:
     needs: build
@@ -40,4 +45,4 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
